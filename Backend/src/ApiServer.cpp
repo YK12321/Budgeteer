@@ -4,12 +4,17 @@
 #include <iomanip>
 
 // Constructor
-ApiServer::ApiServer(const std::string& dbPath, int serverPort)
-    : database(std::make_unique<Database>(dbPath)), port(serverPort) {}
+ApiServer::ApiServer(const std::string& dbPath, int serverPort, bool useRealTime)
+    : database(std::make_unique<Database>(dbPath)), 
+      storeClient(std::make_shared<StoreApiClient>()),
+      llmInterface(std::make_unique<LLMInterface>(storeClient)),
+      port(serverPort),
+      useRealTimeApis(useRealTime) {}
 
 // Initialize the server
 bool ApiServer::initialize() {
     std::cout << "Initializing API Server on port " << port << "..." << std::endl;
+    std::cout << "Real-time APIs: " << (useRealTimeApis ? "ENABLED" : "DISABLED (using sample dataset)") << std::endl;
     
     if (!database->loadFromCSV()) {
         std::cerr << "Failed to load database!" << std::endl;
@@ -17,7 +22,13 @@ bool ApiServer::initialize() {
     }
     
     std::cout << "API Server initialized successfully!" << std::endl;
-    std::cout << "Loaded " << database->getItemCount() << " items." << std::endl;
+    std::cout << "Loaded " << database->getItemCount() << " items from dataset." << std::endl;
+    
+    if (useRealTimeApis) {
+        std::cout << "Store API client ready for real-time queries." << std::endl;
+        std::cout << "LLM interface initialized for natural language processing." << std::endl;
+    }
+    
     return true;
 }
 
@@ -102,6 +113,34 @@ std::string ApiServer::createCategoriesResponse() const {
     return json.str();
 }
 
+// Create shopping list response
+std::string ApiServer::createShoppingListResponse(const std::vector<Item>& items) const {
+    std::ostringstream json;
+    json << std::fixed << std::setprecision(2);
+    json << "{\n";
+    json << "  \"success\": true,\n";
+    json << "  \"shopping_list\": {\n";
+    json << "    \"item_count\": " << items.size() << ",\n";
+    json << "    \"total_cost\": ";
+    
+    double totalCost = 0.0;
+    for (const auto& item : items) {
+        totalCost += item.getCurrentPrice();
+    }
+    json << totalCost << ",\n";
+    
+    json << "    \"items\": [\n";
+    for (size_t i = 0; i < items.size(); i++) {
+        json << "      " << items[i].toJson();
+        if (i < items.size() - 1) json << ",";
+        json << "\n";
+    }
+    json << "    ]\n";
+    json << "  }\n";
+    json << "}";
+    return json.str();
+}
+
 // Request handlers
 std::string ApiServer::handleGetAllItems() const {
     auto items = database->getAllItems();
@@ -157,11 +196,69 @@ std::string ApiServer::handleGetCategories() const {
     return createCategoriesResponse();
 }
 
+// Real-time API handlers
+std::string ApiServer::handleSearchRealTime(const std::string& query) {
+    if (!useRealTimeApis) {
+        return createErrorResponse("Real-time APIs are not enabled. Using sample dataset instead.");
+    }
+    
+    std::cout << "[API] Real-time search: " << query << std::endl;
+    auto items = storeClient->searchAllStores(query);
+    return createJsonResponse(items);
+}
+
+std::string ApiServer::handleComparePrices(const std::string& productName) {
+    if (!useRealTimeApis) {
+        // Fall back to database search
+        return handleSearchItems(productName);
+    }
+    
+    std::cout << "[API] Real-time price comparison: " << productName << std::endl;
+    auto items = storeClient->comparePrices(productName);
+    return createJsonResponse(items);
+}
+
+// LLM Interface handlers
+std::string ApiServer::handleNaturalLanguageQuery(const std::string& query) {
+    std::cout << "[API] Natural language query: " << query << std::endl;
+    
+    std::string response = llmInterface->processNaturalLanguageQuery(query);
+    
+    std::ostringstream json;
+    json << "{\n";
+    json << "  \"success\": true,\n";
+    json << "  \"query\": \"" << query << "\",\n";
+    json << "  \"response\": \"" << response << "\"\n";
+    json << "}";
+    return json.str();
+}
+
+std::string ApiServer::handleGenerateShoppingList(const std::string& request) {
+    std::cout << "[API] Generate shopping list: " << request << std::endl;
+    
+    auto items = llmInterface->generateShoppingList(request);
+    return createShoppingListResponse(items);
+}
+
+std::string ApiServer::handleBudgetInsight(const std::vector<Item>& items) {
+    std::cout << "[API] Budget insight for " << items.size() << " items" << std::endl;
+    
+    std::string insight = llmInterface->getBudgetInsight(items);
+    
+    std::ostringstream json;
+    json << "{\n";
+    json << "  \"success\": true,\n";
+    json << "  \"insight\": \"" << insight << "\"\n";
+    json << "}";
+    return json.str();
+}
+
 // Print menu
 void ApiServer::printMenu() const {
     std::cout << "\n========================================\n";
     std::cout << "      Budgeteer API Menu\n";
     std::cout << "========================================\n";
+    std::cout << "DATABASE QUERIES:\n";
     std::cout << "1.  Get all items\n";
     std::cout << "2.  Get item by ID\n";
     std::cout << "3.  Get items by name\n";
@@ -172,7 +269,21 @@ void ApiServer::printMenu() const {
     std::cout << "8.  Get item statistics\n";
     std::cout << "9.  Get all stores\n";
     std::cout << "10. Get all categories\n";
-    std::cout << "0.  Exit\n";
+    
+    if (useRealTimeApis) {
+        std::cout << "\nREAL-TIME API QUERIES:\n";
+        std::cout << "11. Search real-time (all stores)\n";
+        std::cout << "12. Compare prices (real-time)\n";
+    }
+    
+    std::cout << "\nLLM FEATURES:\n";
+    std::cout << "13. Natural language query\n";
+    std::cout << "14. Generate shopping list (AI)\n";
+    std::cout << "15. Get budget insight\n";
+    
+    std::cout << "\n0.  Exit\n";
+    std::cout << "========================================\n";
+    std::cout << "Mode: " << (useRealTimeApis ? "Real-time APIs" : "Sample Dataset") << "\n";
     std::cout << "========================================\n";
     std::cout << "Enter option: ";
 }
@@ -259,6 +370,57 @@ void ApiServer::processRequest(int option) {
             response = handleGetCategories();
             break;
         }
+        case 11: {
+            if (!useRealTimeApis) {
+                response = createErrorResponse("Real-time APIs not enabled");
+                break;
+            }
+            std::string query;
+            std::cout << "Enter search query: ";
+            std::cin.ignore();
+            std::getline(std::cin, query);
+            std::cout << "\n[API] GET /api/realtime/search?q=" << query << "\n";
+            response = handleSearchRealTime(query);
+            break;
+        }
+        case 12: {
+            if (!useRealTimeApis) {
+                response = createErrorResponse("Real-time APIs not enabled");
+                break;
+            }
+            std::string product;
+            std::cout << "Enter product name: ";
+            std::cin.ignore();
+            std::getline(std::cin, product);
+            std::cout << "\n[API] GET /api/realtime/compare?product=" << product << "\n";
+            response = handleComparePrices(product);
+            break;
+        }
+        case 13: {
+            std::string query;
+            std::cout << "Enter natural language query: ";
+            std::cin.ignore();
+            std::getline(std::cin, query);
+            std::cout << "\n[API] POST /api/llm/query\n";
+            response = handleNaturalLanguageQuery(query);
+            break;
+        }
+        case 14: {
+            std::string request;
+            std::cout << "Describe what you need (e.g., 'snacks under $10'): ";
+            std::cin.ignore();
+            std::getline(std::cin, request);
+            std::cout << "\n[API] POST /api/llm/shopping-list\n";
+            response = handleGenerateShoppingList(request);
+            break;
+        }
+        case 15: {
+            // Use last search results for budget insight
+            auto items = database->getAllItems();
+            std::cout << "\n[API] GET /api/llm/budget-insight\n";
+            response = handleBudgetInsight(items);
+            break;
+        }
         case 0: {
             std::cout << "Shutting down server...\n";
             return;
@@ -289,7 +451,39 @@ void ApiServer::run() {
     } while (true);
 }
 
-// Getter
+// HTTP Server
+void ApiServer::startHttpServer() {
+    std::cout << "\n========================================\n";
+    std::cout << "  Starting HTTP Server on port " << port << "\n";
+    std::cout << "========================================\n";
+    std::cout << "\nNOTE: HTTP server requires cpp-httplib library.\n";
+    std::cout << "To enable HTTP mode:\n";
+    std::cout << "1. Install cpp-httplib: https://github.com/yhirose/cpp-httplib\n";
+    std::cout << "2. Update CMakeLists.txt to link the library\n";
+    std::cout << "3. Implement HTTP endpoints in this method\n\n";
+    std::cout << "For now, using CLI mode instead.\n";
+    std::cout << "========================================\n\n";
+    
+    // Fall back to CLI mode
+    run();
+}
+
+// Configuration
+void ApiServer::setUseRealTimeApis(bool use) {
+    useRealTimeApis = use;
+    std::cout << "[Config] Real-time APIs: " << (use ? "ENABLED" : "DISABLED") << std::endl;
+}
+
+void ApiServer::setStoreApiKey(const std::string& key) {
+    storeClient->setApiKey(key);
+    std::cout << "[Config] Store API key configured" << std::endl;
+}
+
+// Getters
 int ApiServer::getPort() const {
     return port;
+}
+
+bool ApiServer::isUsingRealTimeApis() const {
+    return useRealTimeApis;
 }

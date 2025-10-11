@@ -14,6 +14,8 @@ set(SOURCES
     src/Item.cpp
     src/Database.cpp
     src/ApiServer.cpp
+    src/StoreApiClient.cpp
+    src/LLMInterface.cpp
 )
 
 # Header files
@@ -21,6 +23,8 @@ set(HEADERS
     include/Item.h
     include/Database.h
     include/ApiServer.h
+    include/StoreApiClient.h
+    include/LLMInterface.h
 )
 
 # Create executable

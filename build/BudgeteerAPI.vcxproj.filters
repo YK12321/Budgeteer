@@ -13,6 +13,12 @@
     <ClCompile Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\src\ApiServer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\src\StoreApiClient.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\src\LLMInterface.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\include\Item.h">
@@ -22,6 +28,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\include\ApiServer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\include\StoreApiClient.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\include\LLMInterface.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Budgeteer - Smart Price Comparison</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="shopping-list-styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -24,10 +25,10 @@
                     <h1>Budgeteer</h1>
                 </div>
                 <nav class="nav">
-                    <a href="#search" class="nav-link active">Search</a>
-                    <a href="#stores" class="nav-link">Stores</a>
-                    <a href="#categories" class="nav-link">Categories</a>
-                    <a href="#about" class="nav-link">About</a>
+                    <a href="#search" class="nav-link active" data-tab="search">Search</a>
+                    <a href="#shopping-list" class="nav-link" data-tab="shopping-list">Shopping List</a>
+                    <a href="#stores" class="nav-link" data-tab="stores">Stores</a>
+                    <a href="#about" class="nav-link" data-tab="about">About</a>
                 </nav>
             </div>
         </div>
@@ -86,8 +87,90 @@
         </div>
     </section>
 
+    <!-- Shopping List Section -->
+    <section class="shopping-list-section" id="shoppingListSection" style="display: none;">
+        <div class="container">
+            <h2 class="section-title">Shopping List Manager</h2>
+            
+            <!-- Mode Toggle -->
+            <div class="mode-toggle">
+                <button class="mode-btn active" id="manualModeBtn">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M13 2L3 14H10L9 18L19 6H12L13 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Manual List
+                </button>
+                <button class="mode-btn" id="aiModeBtn">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M10 2C14.4183 2 18 5.58172 18 10C18 14.4183 14.4183 18 10 18C5.58172 18 2 14.4183 2 10C2 5.58172 5.58172 2 10 2Z" stroke="currentColor" stroke-width="2"/>
+                        <path d="M10 6V10L13 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    AI-Powered
+                </button>
+            </div>
+
+            <!-- Manual Mode -->
+            <div class="list-mode" id="manualMode">
+                <div class="add-item-form">
+                    <input type="text" id="manualItemInput" class="list-input" placeholder="Add item to your list (e.g., Milk, Bread, Eggs)">
+                    <button id="addManualItemBtn" class="add-btn">Add Item</button>
+                </div>
+                
+                <div class="shopping-list-container">
+                    <div class="list-header">
+                        <h3>Your Shopping List (<span id="listItemCount">0</span> items)</h3>
+                        <div class="list-actions">
+                            <button id="clearListBtn" class="action-btn">Clear All</button>
+                            <button id="comparePricesBtn" class="action-btn primary">Compare Prices</button>
+                        </div>
+                    </div>
+                    <ul id="shoppingListItems" class="shopping-list-items">
+                        <li class="empty-list-message">Your shopping list is empty. Add items to get started!</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- AI Mode -->
+            <div class="list-mode" id="aiMode" style="display: none;">
+                <div class="ai-prompt-section">
+                    <h3>Describe What You Need</h3>
+                    <p class="ai-description">Tell me what you're shopping for, and I'll create a smart shopping list with the best prices!</p>
+                    
+                    <textarea id="aiPromptInput" class="ai-prompt-input" placeholder="Example: I need snacks for a party under $50&#10;Example: Weekly groceries for a family of 4&#10;Example: Ingredients for pasta dinner"></textarea>
+                    
+                    <div class="ai-options">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="budgetConstraint">
+                            <span>Set Budget Limit</span>
+                        </label>
+                        <input type="number" id="budgetAmount" class="budget-input" placeholder="$" disabled>
+                    </div>
+                    
+                    <button id="generateAiListBtn" class="generate-btn">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M10 2L13 8L19 9L14.5 13.5L16 19L10 16L4 19L5.5 13.5L1 9L7 8L10 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Generate Smart List
+                    </button>
+                </div>
+                
+                <div id="aiResultsContainer" class="ai-results-container" style="display: none;">
+                    <h3>Generated Shopping List</h3>
+                    <div id="aiGeneratedList"></div>
+                    <div class="ai-actions">
+                        <button id="saveAiListBtn" class="action-btn primary">Save to My List</button>
+                        <button id="regenerateBtn" class="action-btn">Regenerate</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Price Comparison Results -->
+            <div id="priceComparisonResults" class="price-comparison-results" style="display: none;"></div>
+        </div>
+    </section>
+
     <!-- Results Section -->
-    <section class="results-section">
+    <section class="results-section" id="searchResultsSection">
         <div class="container">
             <!-- Loading State -->
             <div id="loadingState" class="loading-state hidden">
@@ -174,6 +257,6 @@
         </div>
     </footer>
 
-    <script src="app.js"></script>
+    <script src="app-enhanced.js"></script>
 </body>
 </html>

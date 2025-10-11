@@ -384,9 +384,13 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\src\Item.cpp" />
     <ClCompile Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\src\Database.cpp" />
     <ClCompile Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\src\ApiServer.cpp" />
+    <ClCompile Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\src\StoreApiClient.cpp" />
+    <ClCompile Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\src\LLMInterface.cpp" />
     <ClInclude Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\include\Item.h" />
     <ClInclude Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\include\Database.h" />
     <ClInclude Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\include\ApiServer.h" />
+    <ClInclude Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\include\StoreApiClient.h" />
+    <ClInclude Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\include\LLMInterface.h" />
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>

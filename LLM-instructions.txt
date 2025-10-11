@@ -1,0 +1,79 @@
+# LLM-instructions.txt
+# High-level guidance for the BudgetHere project
+
+## Purpose
+The LLM acts as a natural language interface between the user and the price-comparison engine.  
+It interprets vague or generic shopping requests, expands them into specific product categories, and guides the backend to fetch/store/compare results.
+
+---
+
+## Input
+- User query in natural language (e.g., "I want to buy snacks", "Find me the cheapest milk in Toronto").
+- Optional context: user location, shopping history, budget constraints, dietary preferences.
+
+---
+
+## Core Tasks
+1. **Intent Recognition**
+   - Detect whether the query is specific (e.g., "Coca-Cola 2L") or generic (e.g., "snacks").
+   - Route accordingly.
+
+2. **Category Expansion**
+   - For generic queries, expand into a list of candidate product categories or SKUs.
+   - Use prior shopping history to bias toward user preferences.
+
+3. **Query Normalization**
+   - Standardize product names (e.g., "Coke" → "Coca-Cola 2L").
+   - Map to store-specific SKUs if available.
+
+4. **Data Retrieval (delegated to backend)**
+   - Pass normalized queries to the backend API layer.
+   - Backend handles store APIs, scraping, or cached JSON.
+
+5. **Aggregation & Ranking**
+   - Receive structured results (store, item, price, availability).
+   - Rank by:
+     - Cheapest per item
+     - Cheapest basket (all items from one store)
+     - Other heuristics (distance, brand loyalty, etc.)
+
+6. **Response Generation**
+   - Produce a concise, human-readable summary.
+   - Example table:
+
+     | Store     | Item             | Price | Notes              |
+     |-----------|------------------|-------|--------------------|
+     | Walmart   | Lays Chips 200g  | $2.97 | In stock           |
+     | No Frills | PC Chips 200g    | $2.49 | Flyer deal this wk |
+
+---
+
+## Modes
+- **Cheapest Mix Mode**: Select cheapest item per store, even if basket spans multiple stores.
+- **Single Store Mode**: Select one store that minimizes total basket cost.
+- **Budget Insight Mode**: Estimate weekly/monthly spend, highlight savings.
+
+---
+
+## Constraints
+- Always return structured + natural language output.
+- Avoid hallucinating prices; if data is missing, clearly state "No data available".
+- Keep responses short, clear, and user-friendly.
+
+---
+
+## Example Prompt → Output
+
+**User:** "Find me snacks under $10 near Toronto."  
+**LLM internal steps:**  
+- Expand "snacks" → chips, cookies, granola bars.  
+- Query backend for prices.  
+- Aggregate cheapest options.  
+- Return table + budget summary.  
+
+**LLM Output:**  
+"Here are the cheapest snack options I found near Toronto under $10 total:  
+- No Frills: PC Chips 200g – $2.49  
+- Walmart: Oreo Cookies 300g – $3.29  
+- Superstore: Nature Valley Bars – $3.99  
+Total: $9.77"
