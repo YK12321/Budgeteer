@@ -3,8 +3,14 @@ name: Build and Test
 on:
   push:
     branches: [ main, develop ]
+    paths:
+      - 'Backend/src/**'
+      - 'Backend/include/**'
   pull_request:
     branches: [ main, develop ]
+    paths:
+      - 'Backend/src/**'
+      - 'Backend/include/**'
   workflow_dispatch:
 
 jobs:

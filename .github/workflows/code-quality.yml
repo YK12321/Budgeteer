@@ -3,8 +3,14 @@ name: Code Quality
 on:
   push:
     branches: [ main, develop ]
+    paths:
+      - 'Backend/src/**'
+      - 'Backend/include/**'
   pull_request:
     branches: [ main, develop ]
+    paths:
+      - 'Backend/src/**'
+      - 'Backend/include/**'
 
 permissions:
   actions: read

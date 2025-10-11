@@ -2,8 +2,6 @@
 
 **An intelligent price comparison platform helping families save money on groceries**
 
-🌐 **Live Demo:** [https://yk12321.github.io/Budgeteer/](https://yk12321.github.io/Budgeteer/)
-
 ---
 
 ## Team Info
@@ -33,38 +31,88 @@ Our solution to the problem of inflation is to create an app that takes in an it
 
 ### Prerequisites
 
-- **Backend**: CMake 3.10+, C++17 compiler (MSVC/GCC), OpenSSL
+- **Backend**: Either download a pre-built executable from GitHub Actions OR build from source (requires CMake 3.10+, C++17 compiler, OpenSSL, and both must be in PATH)
 - **Frontend**: Any modern web browser
-- **AI Features**: GitHub Personal Access Token (for GPT integration)
+- **AI Features**: GitHub Personal Access Token with AI API usage permissions
+- **Dataset**: `yec_competition_dataset.csv` file
 
-### Quick Start (30 Seconds)
+### Installing Build Dependencies (Only for Option B - Building from Source)
 
-#### 1. Setup Backend API
+If you choose to build from source, you'll need CMake and OpenSSL installed and added to your system PATH:
+
+```powershell
+# Install CMake and OpenSSL using Chocolatey (Windows)
+choco install cmake
+choco install openssl
+
+# Verify installations
+cmake --version
+openssl version
+```
+
+**Note:** After installation, you may need to restart your terminal or add the installation paths to your PATH environment variable manually.
+
+### Quick Start
+
+#### 1. Setup Frontend
+
+**Download and run the frontend:**
+
+1. Download the `Frontend` folder from the repository
+2. Navigate to the `Frontend` directory
+3. Open `index.html` in your web browser:
+   ```powershell
+   # PowerShell
+   Start-Process index.html
+   ```
+
+#### 2. Setup Backend API
+
+**You have two options:**
+
+**Option A: Download Pre-built Executable (Recommended)**
+
+1. Go to the GitHub repository's Actions tab
+2. Download the latest CI/CD build artifact for your operating system
+3. Extract the executable
+
+**Option B: Build from Source**
 
 ```bash
-# Navigate to backend directory
-cd Backend
+# Clone the repository
+git clone https://github.com/YK12321/Budgeteer.git
+cd Budgeteer/Backend
 
 # Build the project
 cmake -B build
 cmake --build build --config Debug
-
-# Set up your GitHub token (for AI features)
-# Create Backend/.env file with: GITHUB_TOKEN=your_token_here
-
-# Run the server
-.\build\bin\Debug\BudgeteerAPI.exe --http --port 8080
 ```
 
-#### 2. Setup Frontend
+#### 3. Configure Environment
 
-```bash
-# Navigate to frontend directory
-cd Frontend
+1. **Set GitHub Token** (required for AI features):
+   ```powershell
+   # Windows (PowerShell)
+   $env:GITHUB_TOKEN="your_token_with_ai_api_permissions"
+   
+   # Or create a .env file in the Backend directory with:
+   # GITHUB_TOKEN=your_token_with_ai_api_permissions
+   ```
 
-# Open in browser (PowerShell)
-Start-Process index.html
+2. **Place the Dataset**:
+   - Create a directory: `SampleDataset/` (relative to where you run the backend)
+   - Place `yec_competition_dataset.csv` inside: `SampleDataset/yec_competition_dataset.csv`
+
+#### 4. Run Backend Server
+
+```powershell
+# Run with HTTP server enabled (default port 8080)
+.\BudgeteerAPI.exe --http
+
+# The --port flag is optional; it defaults to 8080
 ```
+
+The backend will start on `http://localhost:8080`
 
 #### 3. Start Using Budgeteer
 
