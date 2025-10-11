@@ -2,6 +2,8 @@
 
 A modern, responsive web application for comparing prices across multiple stores.
 
+🌐 **Live Demo:** [https://yk12321.github.io/Budgeteer/](https://yk12321.github.io/Budgeteer/)
+
 ## Features
 
 ✨ **Smart Search** - Intelligent search with similarity matching powered by the C++ backend
