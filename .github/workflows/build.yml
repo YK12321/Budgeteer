@@ -27,10 +27,29 @@ jobs:
     - name: Install OpenSSL
       run: choco install openssl -y
       
+    - name: Find OpenSSL
+      id: find-openssl
+      shell: powershell
+      run: |
+        $opensslPath = "C:\Program Files\OpenSSL"
+        if (Test-Path $opensslPath) {
+          echo "OPENSSL_ROOT_DIR=$opensslPath" >> $env:GITHUB_ENV
+          echo "OpenSSL found at: $opensslPath"
+        } else {
+          $opensslPath = "C:\Program Files\OpenSSL-Win64"
+          if (Test-Path $opensslPath) {
+            echo "OPENSSL_ROOT_DIR=$opensslPath" >> $env:GITHUB_ENV
+            echo "OpenSSL found at: $opensslPath"
+          } else {
+            Write-Error "OpenSSL installation not found"
+            exit 1
+          }
+        }
+      
     - name: Configure CMake
       run: |
         cd Backend
-        cmake -B build -DCMAKE_BUILD_TYPE=Release
+        cmake -B build -DCMAKE_BUILD_TYPE=Release -DOPENSSL_ROOT_DIR="$env:OPENSSL_ROOT_DIR"
       
     - name: Build
       run: |
@@ -104,9 +123,14 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1.14
+      with:
+        cmake-version: '3.28.x'
+      
     - name: Install dependencies
       run: |
-        brew install cmake openssl@3
+        brew install openssl@3
       
     - name: Configure CMake
       run: |
