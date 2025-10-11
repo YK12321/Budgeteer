@@ -1,0 +1,39 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\src\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\src\Item.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\src\Database.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\src\ApiServer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\include\Item.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\include\Database.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\include\ApiServer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{29EDD9CB-D089-3CB1-A53A-E5F17402CA62}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{34162EA3-A99B-3A2B-903C-FD01DAFC9812}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

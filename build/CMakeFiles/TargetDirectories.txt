@@ -1,0 +1,3 @@
+C:/Users/thewi/OneDrive - York University/YorkU/Extracurricular/YEC/2025/Programming/build/CMakeFiles/BudgeteerAPI.dir
+C:/Users/thewi/OneDrive - York University/YorkU/Extracurricular/YEC/2025/Programming/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/thewi/OneDrive - York University/YorkU/Extracurricular/YEC/2025/Programming/build/CMakeFiles/ZERO_CHECK.dir
