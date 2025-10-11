@@ -32,6 +32,13 @@ if(NOT DEFINED CMAKE_CROSSCOMPILING)
   set(CMAKE_CROSSCOMPILING "FALSE")
 endif()
 
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for each subdirectory.
+  include("C:/Users/thewi/OneDrive - York University/YorkU/Extracurricular/YEC/2025/Programming/build/_deps/httplib-build/cmake_install.cmake")
+  include("C:/Users/thewi/OneDrive - York University/YorkU/Extracurricular/YEC/2025/Programming/build/_deps/json-build/cmake_install.cmake")
+
+endif()
+
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
 if(CMAKE_INSTALL_LOCAL_ONLY)

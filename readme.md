@@ -10,7 +10,8 @@ Budgeteer helps users find the best prices for products across multiple stores (
 - **Frontend**: Modern, responsive web application with AI-powered shopping lists
 - **Database**: CSV-based data storage with 6,678+ price records
 - **Smart Search**: Levenshtein distance algorithm for fuzzy matching
-- **LLM Interface**: Natural language query processing
+- **🤖 GPT-4o-mini via GitHub**: Advanced natural language query processing (FREE!)
+- **Hybrid AI**: Smart switching between local and GPT processing
 - **Real-Time APIs**: Framework for live store price integration
 - **Shopping Lists**: Manual and AI-powered list creation
 - **Price Comparison**: Multi-store comparison with savings recommendations
@@ -51,7 +52,9 @@ Programming/
 **For Backend:**
 - C++17 compatible compiler (g++, MSVC, or clang++)
 - CMake 3.10+ or Make
+- OpenSSL (for HTTPS requests)
 - Windows, macOS, or Linux
+- GitHub Personal Access Token (optional, for GPT-4o-mini features - FREE!)
 
 **For Frontend:**
 - Modern web browser (Chrome, Firefox, Safari, Edge)
@@ -59,7 +62,14 @@ Programming/
 
 ### Running the Backend
 
-**Option 1: Using CMake (Recommended)**
+**Step 1: Set GitHub Token (Optional but Recommended - FREE!)**
+```powershell
+# Get your token from: https://github.com/settings/tokens
+# Required scope: read:packages
+$env:GITHUB_TOKEN="ghp_your-token-here"
+```
+
+**Step 2: Build with CMake (Recommended)**
 ```powershell
 # Build
 cd Backend
@@ -72,6 +82,8 @@ cmake --build . --config Debug
 cd bin\Debug
 .\BudgeteerAPI.exe
 ```
+
+> **Note:** First build will download dependencies (cpp-httplib, nlohmann/json). Requires internet connection.
 
 **Option 2: Using Make**
 ```powershell
@@ -111,6 +123,15 @@ python -m http.server 8000
 ## 🎨 Features
 
 ### Backend Features
+
+✅ **🤖 GPT-4o-mini via GitHub Models** 🆕
+- Advanced natural language understanding
+- **FREE during beta** - No credit card required!
+- Intent recognition (search, compare, shopping list, budget)
+- Hybrid processing: Local for simple queries, GPT for complex ones
+- Automatic fallback if API unavailable
+- Cost-optimized with daily query limits
+- Context-aware product extraction
 
 ✅ **Object-Oriented Design**
 - Clean separation with Item, Database, ApiServer, StoreApiClient, and LLMInterface classes
@@ -450,6 +471,8 @@ This project demonstrates:
 ## � Documentation
 
 - **[QUICKSTART.md](QUICKSTART.md)**: Get started in 5 minutes
+- **[GITHUB_API_GUIDE.md](GITHUB_API_GUIDE.md)**: 🆕 GitHub Models API setup (FREE!)
+- **[GITHUB_API_MIGRATION.md](GITHUB_API_MIGRATION.md)**: Migration from OpenAI
 - **[IMPLEMENTATION.md](IMPLEMENTATION.md)**: Complete implementation details
 - **[API_INTEGRATION.md](API_INTEGRATION.md)**: Real store API integration guide
 - **[SUMMARY.md](SUMMARY.md)**: Project summary and achievements
@@ -458,10 +481,11 @@ This project demonstrates:
 ## �🚧 Future Enhancements
 
 - [x] Add LLM natural language interface ✅
+- [x] Integrate GPT-4o-mini for advanced queries ✅ 🆕
 - [x] Add shopping list feature ✅
 - [x] Add price comparison ✅
 - [x] Real-time API framework ✅
-- [ ] Add real HTTP server to backend (cpp-httplib)
+- [x] HTTP client integration (cpp-httplib) ✅ 🆕
 - [ ] Connect to real store APIs (API keys needed)
 - [ ] Implement user authentication
 - [ ] Add favorites/wishlist feature

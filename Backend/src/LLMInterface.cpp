@@ -4,9 +4,35 @@
 #include <algorithm>
 #include <iomanip>
 #include <cctype>
+#include <cstdlib>
+
+#ifdef _WIN32
+    #define CPPHTTPLIB_OPENSSL_SUPPORT
+#endif
+
+#include <httplib.h>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 LLMInterface::LLMInterface(std::shared_ptr<StoreApiClient> client) 
-    : storeClient(client) {
+    : storeClient(client),
+      useGPT(true),  // Enable GPT by default
+      gptModel("openai/gpt-4o-mini"),  // Use GPT-4o-mini via GitHub
+      maxTokens(500),
+      temperature(0.7),
+      dailyQueryCount(0),
+      dailyQueryLimit(1000) {
+    
+    // Try to get API key from environment variable (GitHub token)
+    const char* envKey = std::getenv("GITHUB_TOKEN");
+    if (envKey != nullptr) {
+        openaiApiKey = envKey;
+        std::cout << "[LLM] GitHub API token loaded from environment" << std::endl;
+    } else {
+        std::cout << "[LLM] Warning: GITHUB_TOKEN not found. Set it with setOpenAIKey() or environment variable." << std::endl;
+        useGPT = false;  // Disable GPT if no key
+    }
     
     // Initialize category expansions based on LLM-instructions.txt
     categoryExpansions["snacks"] = {"chips", "cookies", "granola bars", "crackers", "pretzels"};
@@ -21,7 +47,151 @@ void LLMInterface::addCategoryExpansion(const std::string& category, const std::
     categoryExpansions[category] = products;
 }
 
-std::string LLMInterface::detectIntent(const std::string& query) {
+// Configuration methods
+void LLMInterface::setOpenAIKey(const std::string& key) {
+    openaiApiKey = key;
+    if (!key.empty()) {
+        useGPT = true;
+        std::cout << "[LLM] GitHub API token configured" << std::endl;
+    }
+}
+
+void LLMInterface::enableGPTMode(bool enable) {
+    useGPT = enable && !openaiApiKey.empty();
+    std::cout << "[LLM] GPT mode: " << (useGPT ? "enabled" : "disabled") << std::endl;
+}
+
+void LLMInterface::setDailyQueryLimit(int limit) {
+    dailyQueryLimit = limit;
+}
+
+void LLMInterface::setGPTModel(const std::string& model) {
+    gptModel = model;
+}
+
+std::string LLMInterface::getGPTModel() const {
+    return gptModel;
+}
+
+bool LLMInterface::canMakeGPTRequest() {
+    if (dailyQueryCount >= dailyQueryLimit) {
+        std::cout << "[LLM] Daily query limit reached (" << dailyQueryLimit << ")" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+// GPT API Integration
+std::string LLMInterface::callGPTAPI(const std::string& prompt) {
+    if (!canMakeGPTRequest()) {
+        return "";
+    }
+    
+    try {
+        std::cout << "[LLM] Calling GPT-4o-mini via GitHub Models API..." << std::endl;
+        
+        // Create HTTPS client for GitHub Models API
+        httplib::SSLClient cli("models.github.ai");
+        cli.set_connection_timeout(10, 0);  // 10 seconds
+        cli.set_read_timeout(30, 0);        // 30 seconds
+        
+        // Build request body
+        json requestBody = {
+            {"model", gptModel},
+            {"messages", json::array({
+                {
+                    {"role", "system"},
+                    {"content", "You are a helpful shopping assistant for Budgeteer, a price comparison app. "
+                               "Your job is to understand user queries about products, prices, and shopping needs. "
+                               "Be concise, accurate, and helpful. Focus on extracting product names, stores, and budget constraints."}
+                },
+                {
+                    {"role", "user"},
+                    {"content", prompt}
+                }
+            })},
+            {"max_tokens", maxTokens},
+            {"temperature", temperature}
+        };
+        
+        std::string body = requestBody.dump();
+        
+        // Set headers for GitHub API
+        httplib::Headers headers = {
+            {"Content-Type", "application/json"},
+            {"Authorization", "Bearer " + openaiApiKey}
+        };
+        
+        // Make POST request to GitHub Models API
+        auto res = cli.Post("/inference/chat/completions", headers, body, "application/json");
+        
+        if (res && res->status == 200) {
+            json response = json::parse(res->body);
+            std::string content = response["choices"][0]["message"]["content"];
+            
+            dailyQueryCount++;
+            std::cout << "[LLM] GPT response received (query " << dailyQueryCount 
+                     << "/" << dailyQueryLimit << ")" << std::endl;
+            
+            return content;
+        } else if (res) {
+            std::cerr << "[LLM] GitHub API Error: " << res->status << " - " << res->body << std::endl;
+        } else {
+            std::cerr << "[LLM] Connection failed to GitHub Models API" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "[LLM] Exception calling GitHub API: " << e.what() << std::endl;
+    }
+    
+    return "";
+}
+
+std::string LLMInterface::buildPrompt(const std::string& query, const std::string& context) {
+    std::ostringstream prompt;
+    prompt << "User query: \"" << query << "\"\n\n";
+    
+    if (!context.empty()) {
+        prompt << "Context: " << context << "\n\n";
+    }
+    
+    prompt << "Please analyze this query and provide:\n";
+    prompt << "1. Intent (search/compare/shopping_list/budget)\n";
+    prompt << "2. Product names or categories mentioned\n";
+    prompt << "3. Any budget constraints\n";
+    prompt << "4. Store preferences if mentioned\n";
+    prompt << "5. Suggested search terms for our database\n\n";
+    prompt << "Format your response as JSON with keys: intent, products, budget, stores, search_terms";
+    
+    return prompt.str();
+}
+
+bool LLMInterface::isSimpleQuery(const std::string& query) {
+    std::string lowerQuery = query;
+    std::transform(lowerQuery.begin(), lowerQuery.end(), lowerQuery.begin(), ::tolower);
+    
+    // Simple queries are direct product searches
+    std::vector<std::string> simpleIndicators = {
+        "find", "search", "price of", "how much"
+    };
+    
+    // Check if it's a short, direct query
+    if (query.length() < 30) {
+        for (const auto& indicator : simpleIndicators) {
+            if (lowerQuery.find(indicator) != std::string::npos) {
+                return true;
+            }
+        }
+    }
+    
+    // Check for specific product names (likely simple)
+    if (isSpecificQuery(query) && query.length() < 50) {
+        return true;
+    }
+    
+    return false;
+}
+
+std::string LLMInterface::detectIntentLocal(const std::string& query) {
     std::string lowerQuery = query;
     std::transform(lowerQuery.begin(), lowerQuery.end(), lowerQuery.begin(), ::tolower);
     
@@ -185,47 +355,125 @@ std::vector<LLMInterface::RankedResult> LLMInterface::rankBySingleStore(const st
     return results;
 }
 
-std::string LLMInterface::processNaturalLanguageQuery(const std::string& query, Mode mode) {
-    std::cout << "[LLM] Processing query: " << query << std::endl;
+std::string LLMInterface::processQueryWithGPT(const std::string& query, Mode mode) {
+    std::cout << "[LLM] Processing with GPT-4o-mini via GitHub..." << std::endl;
     
-    // Detect intent
-    std::string intent = detectIntent(query);
-    std::cout << "[LLM] Intent detected: " << intent << std::endl;
+    // Build context-aware prompt
+    std::string prompt = buildPrompt(query, "Available stores: Walmart, Loblaws, Costco");
     
-    // Process based on intent
-    if (intent == "SEARCH" || intent == "COMPARE" || intent == "SHOPPING_LIST") {
-        // Extract products from query
-        std::vector<std::string> products;
+    // Call GPT API
+    std::string gptResponse = callGPTAPI(prompt);
+    
+    if (gptResponse.empty()) {
+        std::cout << "[LLM] GPT failed, falling back to local processing" << std::endl;
+        return processQueryLocally(query, mode);
+    }
+    
+    try {
+        // Parse GPT response
+        json parsed = json::parse(gptResponse);
         
-        if (isGenericQuery(query)) {
-            // Expand generic categories
-            std::cout << "[LLM] Generic query detected, expanding categories..." << std::endl;
-            
-            // Simple keyword extraction (in production, use NLP)
-            for (const auto& [category, expansion] : categoryExpansions) {
-                if (query.find(category) != std::string::npos) {
-                    products = expansion;
-                    break;
-                }
+        // Extract search terms
+        std::vector<std::string> searchTerms;
+        if (parsed.contains("search_terms") && parsed["search_terms"].is_array()) {
+            for (const auto& term : parsed["search_terms"]) {
+                searchTerms.push_back(term.get<std::string>());
+            }
+        } else if (parsed.contains("products") && parsed["products"].is_array()) {
+            for (const auto& product : parsed["products"]) {
+                searchTerms.push_back(product.get<std::string>());
             }
         } else {
-            // Specific query - normalize and search
-            std::cout << "[LLM] Specific query detected" << std::endl;
-            products.push_back(normalizeProductName(query));
+            // Fallback: use original query
+            searchTerms.push_back(query);
         }
         
         // Search for products
         std::vector<Item> allItems;
-        for (const auto& product : products) {
-            auto items = storeClient->searchAllStores(product);
+        for (const auto& term : searchTerms) {
+            auto items = storeClient->searchAllStores(term);
             allItems.insert(allItems.end(), items.begin(), items.end());
         }
         
-        // Format response based on mode
+        if (allItems.empty()) {
+            return "I couldn't find any products matching your query. Try being more specific or use different keywords.";
+        }
+        
+        // Format response
         return formatResponse(allItems, mode);
+        
+    } catch (const json::exception& e) {
+        std::cerr << "[LLM] Error parsing GPT response: " << e.what() << std::endl;
+        std::cerr << "[LLM] Raw response: " << gptResponse << std::endl;
+        // Fallback to local processing
+        return processQueryLocally(query, mode);
+    }
+}
+
+std::string LLMInterface::processQueryLocally(const std::string& query, Mode mode) {
+    std::cout << "[LLM] Processing locally (fallback mode)..." << std::endl;
+    
+    // Detect intent
+    std::string intent = detectIntentLocal(query);
+    std::cout << "[LLM] Intent detected: " << intent << std::endl;
+    
+    // Extract products from query
+    std::vector<std::string> products;
+    
+    if (isGenericQuery(query)) {
+        // Expand generic categories
+        std::cout << "[LLM] Generic query detected, expanding categories..." << std::endl;
+        
+        // Simple keyword extraction
+        for (const auto& [category, expansion] : categoryExpansions) {
+            if (query.find(category) != std::string::npos) {
+                products = expansion;
+                break;
+            }
+        }
+    } else {
+        // Specific query - normalize and search
+        std::cout << "[LLM] Specific query detected" << std::endl;
+        products.push_back(normalizeProductName(query));
     }
     
-    return "I'm sorry, I couldn't process that query. Please try rephrasing.";
+    if (products.empty()) {
+        products.push_back(query);
+    }
+    
+    // Search for products
+    std::vector<Item> allItems;
+    for (const auto& product : products) {
+        auto items = storeClient->searchAllStores(product);
+        allItems.insert(allItems.end(), items.begin(), items.end());
+    }
+    
+    if (allItems.empty()) {
+        return "No products found matching your query.";
+    }
+    
+    // Format response based on mode
+    return formatResponse(allItems, mode);
+}
+
+std::string LLMInterface::processNaturalLanguageQuery(const std::string& query, Mode mode) {
+    std::cout << "[LLM] Processing query: " << query << std::endl;
+    std::cout << "[LLM] Using model: " << gptModel << " via GitHub" << std::endl;
+    
+    // Decide whether to use GPT or local processing
+    if (useGPT && !openaiApiKey.empty()) {
+        // Use GPT for complex queries, local for simple ones (hybrid approach)
+        if (isSimpleQuery(query)) {
+            std::cout << "[LLM] Simple query detected, using local processing" << std::endl;
+            return processQueryLocally(query, mode);
+        } else {
+            std::cout << "[LLM] Complex query detected, using GPT-4o-mini via GitHub" << std::endl;
+            return processQueryWithGPT(query, mode);
+        }
+    } else {
+        std::cout << "[LLM] GPT disabled or no GitHub token, using local processing" << std::endl;
+        return processQueryLocally(query, mode);
+    }
 }
 
 std::vector<Item> LLMInterface::generateShoppingList(const std::string& request) {

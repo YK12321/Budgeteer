@@ -11,23 +11,44 @@
 /**
  * @class LLMInterface
  * @brief Natural language interface for shopping queries
- * Implements the LLM instructions for intent recognition and query processing
+ * Implements GPT-4o-mini integration for intent recognition and query processing
  */
 class LLMInterface {
 private:
     std::shared_ptr<StoreApiClient> storeClient;
     
+    // GPT API configuration
+    std::string openaiApiKey;
+    bool useGPT;
+    std::string gptModel;
+    int maxTokens;
+    double temperature;
+    
+    // Usage tracking
+    int dailyQueryCount;
+    int dailyQueryLimit;
+    
     // Category expansion mappings
     std::map<std::string, std::vector<std::string>> categoryExpansions;
     
-    // Intent recognition
-    std::string detectIntent(const std::string& query);
+    // GPT API methods
+    std::string callGPTAPI(const std::string& prompt);
+    std::string buildPrompt(const std::string& query, const std::string& context);
+    bool canMakeGPTRequest();
+    
+    // Local fallback methods
+    std::string detectIntentLocal(const std::string& query);
     bool isSpecificQuery(const std::string& query);
     bool isGenericQuery(const std::string& query);
+    bool isSimpleQuery(const std::string& query);
     
     // Query processing
     std::vector<std::string> expandCategory(const std::string& category);
     std::string normalizeProductName(const std::string& productName);
+    
+    // Processing methods
+    std::string processQueryWithGPT(const std::string& query, Mode mode);
+    std::string processQueryLocally(const std::string& query, Mode mode);
     
     // Result ranking
     struct RankedResult {
@@ -41,15 +62,22 @@ private:
     std::vector<RankedResult> rankBySingleStore(const std::vector<Item>& items);
     
 public:
-    // Constructor
-    explicit LLMInterface(std::shared_ptr<StoreApiClient> client);
-    
     // Query processing modes
     enum class Mode {
         CHEAPEST_MIX,      // Select cheapest item per category across all stores
         SINGLE_STORE,      // Minimize total cost at one store
         BUDGET_INSIGHT     // Provide budget analysis
     };
+    
+    // Constructor
+    explicit LLMInterface(std::shared_ptr<StoreApiClient> client);
+    
+    // Configuration methods
+    void setOpenAIKey(const std::string& key);
+    void enableGPTMode(bool enable);
+    void setDailyQueryLimit(int limit);
+    void setGPTModel(const std::string& model);
+    std::string getGPTModel() const;
     
     // Main interface methods
     std::string processNaturalLanguageQuery(const std::string& query, Mode mode = Mode::CHEAPEST_MIX);

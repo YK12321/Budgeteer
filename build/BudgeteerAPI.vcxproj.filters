@@ -41,6 +41,9 @@
     <CustomBuild Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\Backend\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
+    <Natvis Include="C:\Users\thewi\OneDrive - York University\YorkU\Extracurricular\YEC\2025\Programming\build\_deps\json-src\nlohmann_json.natvis" />
+  </ItemGroup>
+  <ItemGroup>
     <Filter Include="Header Files">
       <UniqueIdentifier>{29EDD9CB-D089-3CB1-A53A-E5F17402CA62}</UniqueIdentifier>
     </Filter>
