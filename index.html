@@ -16,19 +16,15 @@
         <div class="container">
             <div class="header-content">
                 <div class="logo">
-                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                        <rect width="32" height="32" rx="8" fill="#4F46E5"/>
-                        <path d="M8 12L16 8L24 12V20L16 24L8 20V12Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M16 24V16" stroke="white" stroke-width="2" stroke-linecap="round"/>
-                        <path d="M8 12L16 16L24 12" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
+                    <img src="Assets/2dMascot.png" alt="Budgie Mascot" class="logo-image">
                     <h1>Budgeteer</h1>
                 </div>
                 <nav class="nav">
                     <a href="#search" class="nav-link active" data-tab="search">Search</a>
-                    <a href="#shopping-list" class="nav-link" data-tab="shopping-list">Shopping List</a>
-                    <a href="#stores" class="nav-link" data-tab="stores">Stores</a>
-                    <a href="#about" class="nav-link" data-tab="about">About</a>
+                    <a href="#shopping-list" class="nav-link" data-tab="shopping-list">
+                        Shopping List
+                        <span id="cartBadge" class="cart-badge" style="display: none;">0</span>
+                    </a>
                 </nav>
             </div>
         </div>
@@ -38,11 +34,33 @@
     <section class="hero">
         <div class="container">
             <div class="hero-content">
-                <h2 class="hero-title">Find the Best Prices</h2>
+                <!-- Mascot -->
+                <div class="mascot-container">
+                    <img src="Assets/2dMascot.png" alt="Budgie the Budget Mascot" class="mascot-image">
+                </div>
+                
+                <h2 class="hero-title">Find the Best Prices with Budgie</h2>
                 <p class="hero-subtitle">Compare prices across Walmart, Loblaws, and Costco to save money on your shopping</p>
                 
-                <!-- Search Bar -->
-                <div class="search-section">
+                <!-- Search Mode Toggle -->
+                <div class="search-mode-toggle">
+                    <button class="mode-toggle-btn active" id="basicSearchToggle">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M9 17C13.4183 17 17 13.4183 17 9C17 4.58172 13.4183 1 9 1C4.58172 1 1 4.58172 1 9C1 13.4183 4.58172 17 9 17Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M19 19L14.65 14.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>Basic Search</span>
+                    </button>
+                    <button class="mode-toggle-btn" id="aiSearchToggle">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M10 2L13 8L19 9L14.5 13.5L16 19L10 16L4 19L5.5 13.5L1 9L7 8L10 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span>AI-Powered</span>
+                    </button>
+                </div>
+
+                <!-- Basic Search Section -->
+                <div class="search-section" id="basicSearchSection">
                     <div class="search-bar">
                         <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
                             <path d="M9 17C13.4183 17 17 13.4183 17 9C17 4.58172 13.4183 1 9 1C4.58172 1 1 4.58172 1 9C1 13.4183 4.58172 17 9 17Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -65,6 +83,26 @@
                             <span class="price-separator">-</span>
                             <input type="number" id="maxPrice" class="price-input" placeholder="Max $">
                         </div>
+                    </div>
+                </div>
+
+                <!-- AI Search Section -->
+                <div class="ai-search-section" id="aiSearchSection" style="display: none;">
+                    <div class="ai-search-card">
+                        <div class="ai-header">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="ai-icon">
+                                <path d="M12 2L15 9L22 10L17 15L19 22L12 19L5 22L7 15L2 10L9 9L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <h3>Ask Budgie Anything!</h3>
+                        </div>
+                        <p class="ai-description">Describe what you need in natural language and let AI find the best deals</p>
+                        <textarea id="aiSearchInput" class="ai-search-input" placeholder="Try:&#10;• I need party snacks under $30&#10;• Find me ingredients to bake a cake&#10;• Looking for affordable breakfast items&#10;• Need cleaning supplies for the house"></textarea>
+                        <button id="aiSearchBtn" class="ai-search-button">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                                <path d="M10 2L13 8L19 9L14.5 13.5L16 19L10 16L4 19L5.5 13.5L1 9L7 8L10 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>Search with AI</span>
+                        </button>
                     </div>
                 </div>
 
@@ -257,6 +295,9 @@
         </div>
     </footer>
 
+    <!-- Chart.js for price graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
     <script src="app-enhanced.js"></script>
 </body>
 </html>

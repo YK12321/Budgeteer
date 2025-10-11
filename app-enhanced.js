@@ -1,6 +1,6 @@
 // API Configuration
-const API_BASE_URL = 'http://localhost:8080'; // Update this when you have a real HTTP server
-const USE_REAL_API = false; // Set to true when backend HTTP server is running
+const API_BASE_URL = 'http://localhost:8080'; // Backend server address
+const USE_REAL_API = true; // Set to false to use mock data for testing without backend
 
 // State Management
 const state = {
@@ -175,6 +175,14 @@ function addToShoppingList(itemName) {
     updateShoppingListUI();
 }
 
+// Add item to shopping list from search results card
+function addToShoppingListFromCard(itemName) {
+    addToShoppingList(itemName);
+    
+    // Show brief confirmation (toast-style notification)
+    showToast(`✓ Added "${itemName}" to shopping list`);
+}
+
 function removeFromShoppingList(id) {
     state.shoppingList = state.shoppingList.filter(item => item.id !== id);
     saveShoppingList();
@@ -199,9 +207,21 @@ function clearShoppingList() {
 }
 
 function updateShoppingListUI() {
-    listItemCount.textContent = state.shoppingList.length;
+    const count = state.shoppingList.length;
+    listItemCount.textContent = count;
     
-    if (state.shoppingList.length === 0) {
+    // Update cart badge in navigation
+    const cartBadge = document.getElementById('cartBadge');
+    if (cartBadge) {
+        if (count > 0) {
+            cartBadge.textContent = count;
+            cartBadge.style.display = 'inline-block';
+        } else {
+            cartBadge.style.display = 'none';
+        }
+    }
+    
+    if (count === 0) {
         shoppingListItems.innerHTML = '<li class="empty-list-message">Your shopping list is empty. Add items to get started!</li>';
         return;
     }
@@ -512,6 +532,30 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// Show toast notification
+function showToast(message) {
+    // Remove any existing toast
+    const existingToast = document.querySelector('.toast-notification');
+    if (existingToast) {
+        existingToast.remove();
+    }
+    
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    // Trigger animation
+    setTimeout(() => toast.classList.add('show'), 10);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
 // Populate Filter Dropdowns
 function populateFilters() {
     // Store filter
@@ -677,16 +721,71 @@ function sortResults() {
 }
 
 // Display Results
+// Get latest prices for items (one per item_id + store combination)
+function getLatestPrices(items) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize to start of day
+    const latestItems = {};
+    
+    items.forEach(item => {
+        const key = `${item.item_id}_${item.store}`;
+        const itemDate = new Date(item.price_date);
+        itemDate.setHours(0, 0, 0, 0); // Normalize to start of day
+        
+        // Calculate time difference from today
+        const itemDiff = Math.abs(today - itemDate);
+        
+        if (!latestItems[key]) {
+            latestItems[key] = item;
+        } else {
+            const currentDate = new Date(latestItems[key].price_date);
+            currentDate.setHours(0, 0, 0, 0);
+            const currentDiff = Math.abs(today - currentDate);
+            
+            // Keep the item with the date closest to today
+            if (itemDiff < currentDiff) {
+                latestItems[key] = item;
+            }
+        }
+    });
+    
+    return Object.values(latestItems);
+}
+
 function displayResults(items) {
     if (items.length === 0) {
         showEmptyState('No items found matching your criteria');
         return;
     }
 
-    resultsGrid.innerHTML = '';
-    resultsTitle.textContent = `${items.length} Results Found`;
+    // Filter to show only latest prices
+    const latestItems = getLatestPrices(items);
 
-    items.forEach(item => {
+    resultsGrid.innerHTML = '';
+    resultsTitle.textContent = `${latestItems.length} Results Found`;
+
+    latestItems.forEach(item => {
+        const card = createItemCard(item);
+        resultsGrid.appendChild(card);
+    });
+
+    showResultsContainer();
+}
+
+// Display search results with custom title
+function displaySearchResults(items, title) {
+    if (items.length === 0) {
+        showEmptyState('No items found matching your criteria');
+        return;
+    }
+
+    // Filter to show only latest prices
+    const latestItems = getLatestPrices(items);
+
+    resultsGrid.innerHTML = '';
+    resultsTitle.textContent = title || `${latestItems.length} Results Found`;
+
+    latestItems.forEach(item => {
         const card = createItemCard(item);
         resultsGrid.appendChild(card);
     });
@@ -698,7 +797,6 @@ function displayResults(items) {
 function createItemCard(item) {
     const card = document.createElement('div');
     card.className = 'item-card';
-    card.onclick = () => showItemDetail(item);
 
     const storeColors = {
         'Walmart': '#0071CE',
@@ -716,16 +814,33 @@ function createItemCard(item) {
             ${item.category_tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
         </div>
         <div class="item-footer">
-            <span class="item-price">$${item.current_price.toFixed(2)}</span>
-            <span class="item-date">${new Date(item.price_date).toLocaleDateString()}</span>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem; flex: 1;">
+                <span class="item-price">$${item.current_price.toFixed(2)}</span>
+                <span class="item-date">${new Date(item.price_date).toLocaleDateString()}</span>
+            </div>
+            <button class="add-to-cart-btn" onclick="event.stopPropagation(); addToShoppingListFromCard('${item.item_name.replace(/'/g, "\\'")}');" title="Add to Shopping List">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="9" cy="21" r="1"></circle>
+                    <circle cx="20" cy="21" r="1"></circle>
+                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                </svg>
+            </button>
         </div>
     `;
+
+    // Add click handler to card (but not the button)
+    card.addEventListener('click', (e) => {
+        if (!e.target.closest('.add-to-cart-btn')) {
+            showItemDetail(item);
+        }
+    });
 
     return card;
 }
 
 // Show Item Detail Modal
 function showItemDetail(item) {
+    // Get price history for this specific item at this store
     const priceHistory = state.items
         .filter(i => i.item_id === item.item_id && i.store === item.store)
         .sort((a, b) => new Date(b.price_date) - new Date(a.price_date));
@@ -735,26 +850,100 @@ function showItemDetail(item) {
     const maxPrice = Math.max(...prices);
     const avgPrice = (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2);
 
+    // Find the same item at other stores (exact item name match)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize to start of day
+    const sameItemOtherStores = state.items
+        .filter(i => i.item_name === item.item_name && i.store !== item.store)
+        .reduce((acc, curr) => {
+            const currDate = new Date(curr.price_date);
+            currDate.setHours(0, 0, 0, 0); // Normalize to start of day
+            
+            // Calculate time difference from today
+            const currDiff = Math.abs(today - currDate);
+            
+            if (!acc[curr.store]) {
+                acc[curr.store] = curr;
+            } else {
+                const existingDate = new Date(acc[curr.store].price_date);
+                existingDate.setHours(0, 0, 0, 0);
+                const existingDiff = Math.abs(today - existingDate);
+                
+                // Keep the item with the date closest to today
+                if (currDiff < existingDiff) {
+                    acc[curr.store] = curr;
+                }
+            }
+            return acc;
+        }, {});
+
+    const storeColors = {
+        'Walmart': '#0071CE',
+        'Loblaws': '#ED1B24',
+        'Costco': '#0063A5'
+    };
+
+    // Build the "Available at Other Stores" section
+    const otherStoresHtml = Object.keys(sameItemOtherStores).length > 0 ? `
+        <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border);">
+            <h3 style="margin-bottom: 1rem;">Available at Other Stores</h3>
+            <div style="display: grid; gap: 1rem;">
+                ${Object.values(sameItemOtherStores).map(storeItem => `
+                    <div style="background: var(--background); padding: 1rem; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="showItemDetail(state.items.find(i => i.item_id === ${storeItem.item_id} && i.store === '${storeItem.store}'))">
+                        <div>
+                            <span class="store-badge" style="background: ${storeColors[storeItem.store]}; padding: 0.25rem 0.75rem; border-radius: 4px; color: white; font-size: 0.875rem; font-weight: 600;">${storeItem.store}</span>
+                            <div style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--text-secondary);">
+                                Latest: ${new Date(storeItem.price_date).toLocaleDateString()}
+                            </div>
+                        </div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--secondary);">
+                            $${storeItem.current_price.toFixed(2)}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    ` : '';
+
     modalBody.innerHTML = `
         <h2>${item.item_name}</h2>
         <p style="color: var(--text-secondary); margin-bottom: 2rem;">${item.item_description}</p>
         
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
             <div style="background: var(--background); padding: 1rem; border-radius: 8px;">
-                <div style="font-size: 0.875rem; color: var(--text-secondary);">Current Price</div>
+                <div style="font-size: 0.875rem; color: var(--text-secondary);">Current Price at ${item.store}</div>
                 <div style="font-size: 1.5rem; font-weight: 700; color: var(--secondary);">$${item.current_price.toFixed(2)}</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                    ${new Date(item.price_date).toLocaleDateString()}
+                </div>
             </div>
             <div style="background: var(--background); padding: 1rem; border-radius: 8px;">
                 <div style="font-size: 0.875rem; color: var(--text-secondary);">Average Price</div>
                 <div style="font-size: 1.5rem; font-weight: 700;">$${avgPrice}</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                    Based on ${prices.length} price point${prices.length > 1 ? 's' : ''}
+                </div>
             </div>
             <div style="background: var(--background); padding: 1rem; border-radius: 8px;">
                 <div style="font-size: 0.875rem; color: var(--text-secondary);">Lowest Price</div>
                 <div style="font-size: 1.5rem; font-weight: 700; color: var(--secondary);">$${minPrice.toFixed(2)}</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                    Best deal recorded
+                </div>
             </div>
             <div style="background: var(--background); padding: 1rem; border-radius: 8px;">
                 <div style="font-size: 0.875rem; color: var(--text-secondary);">Highest Price</div>
                 <div style="font-size: 1.5rem; font-weight: 700; color: var(--error);">$${maxPrice.toFixed(2)}</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                    Peak price seen
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 2rem;">
+            <h3 style="margin-bottom: 1rem;">Price Trend at ${item.store}</h3>
+            <div style="background: var(--background); padding: 1.5rem; border-radius: 8px;">
+                <canvas id="priceChart" style="max-height: 300px;"></canvas>
             </div>
         </div>
 
@@ -769,16 +958,221 @@ function showItemDetail(item) {
                 `).join('')}
             </div>
         </div>
+
+        ${otherStoresHtml}
     `;
 
     itemModal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+    
+    // Render the price chart after modal is visible
+    setTimeout(() => renderPriceChart(priceHistory, item.store), 100);
+}
+
+// Global variable to store chart instance
+let priceChartInstance = null;
+
+// Render price chart
+function renderPriceChart(priceHistory, storeName) {
+    // Destroy existing chart if it exists
+    if (priceChartInstance) {
+        priceChartInstance.destroy();
+    }
+
+    // Sort by date ascending for chart
+    const sortedHistory = [...priceHistory].sort((a, b) => new Date(a.price_date) - new Date(b.price_date));
+    
+    const labels = sortedHistory.map(p => new Date(p.price_date).toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short'
+    }));
+    const data = sortedHistory.map(p => p.current_price);
+    
+    // Calculate trend
+    const firstPrice = data[0];
+    const lastPrice = data[data.length - 1];
+    const priceChange = lastPrice - firstPrice;
+    const percentChange = ((priceChange / firstPrice) * 100).toFixed(1);
+    
+    // Color based on trend
+    const trendColor = priceChange < 0 ? 'rgba(52, 211, 153, 0.8)' : 'rgba(248, 113, 113, 0.8)';
+    const trendBgColor = priceChange < 0 ? 'rgba(52, 211, 153, 0.2)' : 'rgba(248, 113, 113, 0.2)';
+
+    const ctx = document.getElementById('priceChart');
+    priceChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: `Price at ${storeName}`,
+                data: data,
+                borderColor: trendColor,
+                backgroundColor: trendBgColor,
+                borderWidth: 3,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                pointBackgroundColor: trendColor,
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        color: '#64748b',
+                        font: {
+                            size: 12,
+                            family: "'Inter', sans-serif"
+                        },
+                        usePointStyle: true,
+                        padding: 15
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    titleColor: '#fff',
+                    bodyColor: '#e2e8f0',
+                    borderColor: 'rgba(148, 163, 184, 0.2)',
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: false,
+                    callbacks: {
+                        label: function(context) {
+                            return `$${context.parsed.y.toFixed(2)}`;
+                        }
+                    }
+                },
+                title: {
+                    display: true,
+                    text: `Price Trend: ${priceChange >= 0 ? '+' : ''}$${priceChange.toFixed(2)} (${priceChange >= 0 ? '+' : ''}${percentChange}%)`,
+                    color: priceChange < 0 ? '#34d399' : '#f87171',
+                    font: {
+                        size: 14,
+                        weight: 'bold',
+                        family: "'Inter', sans-serif"
+                    },
+                    padding: {
+                        bottom: 20
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        color: '#64748b',
+                        font: {
+                            size: 11,
+                            family: "'Inter', sans-serif"
+                        },
+                        callback: function(value) {
+                            return '$' + value.toFixed(2);
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(148, 163, 184, 0.1)',
+                        drawBorder: false
+                    }
+                },
+                x: {
+                    ticks: {
+                        color: '#64748b',
+                        font: {
+                            size: 10,
+                            family: "'Inter', sans-serif"
+                        },
+                        maxRotation: 45,
+                        minRotation: 45
+                    },
+                    grid: {
+                        display: false,
+                        drawBorder: false
+                    }
+                }
+            },
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            }
+        }
+    });
 }
 
 // Close Modal
 function closeModal() {
+    // Destroy chart when closing modal
+    if (priceChartInstance) {
+        priceChartInstance.destroy();
+        priceChartInstance = null;
+    }
+    
     itemModal.classList.add('hidden');
     document.body.style.overflow = '';
+}
+
+// Fetch full item details with price history for AI results
+async function fetchFullItemDetails(itemNames) {
+    const matchedItems = [];
+    
+    // Search for each item name in the loaded items database
+    for (const itemName of itemNames) {
+        // Find exact matches first
+        let exactMatches = state.items.filter(item => 
+            item.item_name.toLowerCase() === itemName.toLowerCase()
+        );
+        
+        // If no exact match, try partial match
+        if (exactMatches.length === 0) {
+            exactMatches = state.items.filter(item => 
+                item.item_name.toLowerCase().includes(itemName.toLowerCase()) ||
+                itemName.toLowerCase().includes(item.item_name.toLowerCase())
+            );
+        }
+        
+        if (exactMatches.length > 0) {
+            // Group by unique item_name and get latest price from each store
+            const itemsByName = {};
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Normalize to start of day
+            
+            exactMatches.forEach(item => {
+                const key = `${item.item_name}_${item.store}`;
+                const itemDate = new Date(item.price_date);
+                itemDate.setHours(0, 0, 0, 0); // Normalize to start of day
+                
+                // Calculate time difference from today
+                const itemDiff = Math.abs(today - itemDate);
+                
+                if (!itemsByName[key]) {
+                    itemsByName[key] = item;
+                } else {
+                    const currentDate = new Date(itemsByName[key].price_date);
+                    currentDate.setHours(0, 0, 0, 0);
+                    const currentDiff = Math.abs(today - currentDate);
+                    
+                    // Keep the item with the date closest to today
+                    if (itemDiff < currentDiff) {
+                        itemsByName[key] = item;
+                    }
+                }
+            });
+            
+            // Add unique items (closest price to today from each store)
+            Object.values(itemsByName).forEach(item => {
+                matchedItems.push(item);
+            });
+        }
+    }
+    
+    console.log('[AI Search] Found', matchedItems.length, 'items with full details');
+    return matchedItems;
 }
 
 // UI State Management
@@ -809,5 +1203,145 @@ function showResultsContainer() {
     resultsContainer.classList.remove('hidden');
 }
 
+// Search Mode Toggle Functionality
+function setupSearchModeToggle() {
+    const basicSearchToggle = document.getElementById('basicSearchToggle');
+    const aiSearchToggle = document.getElementById('aiSearchToggle');
+    const basicSearchSection = document.getElementById('basicSearchSection');
+    const aiSearchSection = document.getElementById('aiSearchSection');
+    const aiSearchBtn = document.getElementById('aiSearchBtn');
+    const aiSearchInput = document.getElementById('aiSearchInput');
+
+    // Toggle between Basic and AI search
+    basicSearchToggle.addEventListener('click', () => {
+        basicSearchToggle.classList.add('active');
+        aiSearchToggle.classList.remove('active');
+        basicSearchSection.style.display = 'block';
+        aiSearchSection.style.display = 'none';
+    });
+
+    aiSearchToggle.addEventListener('click', () => {
+        aiSearchToggle.classList.add('active');
+        basicSearchToggle.classList.remove('active');
+        basicSearchSection.style.display = 'none';
+        aiSearchSection.style.display = 'block';
+    });
+
+    // Handle AI Search
+    aiSearchBtn.addEventListener('click', async () => {
+        const query = aiSearchInput.value.trim();
+        
+        if (!query) {
+            alert('Please describe what you\'re looking for!');
+            return;
+        }
+
+        showLoadingState();
+        
+        try {
+            if (!USE_REAL_API) {
+                // Mock response for testing
+                setTimeout(() => {
+                    const mockResults = state.items.slice(0, 10);
+                    displaySearchResults(mockResults, `AI Results for: "${query}"`);
+                }, 1500);
+                return;
+            }
+
+            // Call the AI-powered natural language query endpoint
+            console.log('[AI Search] Sending query:', query);
+            console.log('[AI Search] API URL:', `${API_BASE_URL}/api/llm/query`);
+            
+            const response = await fetch(`${API_BASE_URL}/api/llm/query`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ query: query })
+            });
+
+            console.log('[AI Search] Response status:', response.status);
+            console.log('[AI Search] Response headers:', response.headers);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('[AI Search] Response data:', data);
+            
+            if (data.success) {
+                // Parse the response and extract item names
+                if (data.response && data.response.includes('|')) {
+                    // Table format response - extract item names
+                    const lines = data.response.split('\n').filter(line => line.includes('|'));
+                    const extractedItems = [];
+                    
+                    for (const line of lines) {
+                        if (line.includes('---') || line.includes('Store') || line.includes('Total:')) continue;
+                        
+                        const parts = line.split('|').map(p => p.trim()).filter(p => p);
+                        if (parts.length >= 2) {
+                            const itemName = parts[1]; // Item name is in second column
+                            extractedItems.push(itemName);
+                        }
+                    }
+                    
+                    if (extractedItems.length > 0) {
+                        // Fetch full item details with price history from backend
+                        console.log('[AI Search] Fetching full details for:', extractedItems);
+                        const fullItems = await fetchFullItemDetails(extractedItems);
+                        
+                        if (fullItems.length > 0) {
+                            displaySearchResults(fullItems, `AI Results: "${query}"`);
+                        } else {
+                            showEmptyState('No matching items found in database');
+                        }
+                    } else {
+                        showEmptyState('No AI results found');
+                    }
+                } else {
+                    // Text response - show as message
+                    hideLoadingState();
+                    alert(`Budgie says: ${data.response}`);
+                }
+            } else {
+                showEmptyState('AI search failed');
+                console.error('AI search error:', data);
+            }
+        } catch (error) {
+            console.error('[AI Search] Error details:', error);
+            console.error('[AI Search] Error message:', error.message);
+            console.error('[AI Search] Error stack:', error.stack);
+            hideLoadingState();
+            
+            // More detailed error message
+            let errorMessage = 'Failed to perform AI search.\n\n';
+            if (error.message.includes('Failed to fetch')) {
+                errorMessage += 'Cannot connect to backend server.\n';
+                errorMessage += 'Make sure the backend is running on http://localhost:8080';
+            } else if (error.message.includes('HTTP error')) {
+                errorMessage += `Server returned error: ${error.message}\n`;
+                errorMessage += 'Check the backend console for details.';
+            } else {
+                errorMessage += `Error: ${error.message}`;
+            }
+            
+            alert(errorMessage);
+        }
+    });
+
+    // Allow Enter key to trigger AI search
+    aiSearchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            aiSearchBtn.click();
+        }
+    });
+}
+
 // Initialize the app when DOM is ready
-document.addEventListener('DOMContentLoaded', initializeApp);
+document.addEventListener('DOMContentLoaded', () => {
+    initializeApp();
+    setupSearchModeToggle();
+});
