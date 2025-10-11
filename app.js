@@ -1,43 +1,125 @@
-// API Configuration
-const API_BASE_URL = 'http://localhost:8080'; // Update this when you have a real HTTP server
+/**
+ * @file app.js
+ * @brief Frontend application logic for Budgeteer price comparison platform
+ * 
+ * This file contains all client-side JavaScript for the Budgeteer application.
+ * It handles:
+ * - State management for items, filters, and search
+ * - API communication with the C++ backend
+ * - User interface updates and interactions
+ * - Search functionality (basic and AI-powered)
+ * - Filter and sort operations
+ * - Modal display for item details
+ * 
+ * Architecture:
+ * - Uses vanilla JavaScript (no framework dependencies)
+ * - Event-driven programming model
+ * - Centralized state management
+ * - Modular function design
+ * 
+ * @author York Entrepreneurship Competition Team
+ * @date October 2025
+ * @version 1.0
+ */
 
-// State Management
+// ==================== Configuration ====================
+
+/**
+ * Backend API base URL
+ * Change this to your production backend URL when deploying
+ * Local development: http://localhost:8080
+ * Production: https://your-domain.com/api
+ */
+const API_BASE_URL = 'http://localhost:8080';
+
+// ==================== State Management ====================
+
+/**
+ * Global application state
+ * Centralizes all dynamic data for the application
+ * 
+ * @property {Array<Object>} items - All items loaded from database
+ * @property {Array<Object>} filteredItems - Currently displayed items after search/filter
+ * @property {Array<string>} stores - Available stores (Walmart, Loblaws, Costco)
+ * @property {Array<string>} categories - Available product categories
+ * @property {string} currentSearch - Current search query
+ * @property {Object} currentFilters - Active filter settings
+ */
 const state = {
-    items: [],
-    filteredItems: [],
-    stores: [],
-    categories: [],
-    currentSearch: '',
-    currentFilters: {
-        store: '',
-        category: '',
-        minPrice: null,
-        maxPrice: null
+    items: [],           // Complete dataset of all products
+    filteredItems: [],   // Subset currently displayed to user
+    stores: [],          // ["Walmart", "Loblaws", "Costco"]
+    categories: [],      // ["dairy", "electronics", "baby", etc.]
+    currentSearch: '',   // User's current search term
+    currentFilters: {    // Active filter criteria
+        store: '',       // Selected store (empty = all stores)
+        category: '',    // Selected category (empty = all categories)
+        minPrice: null,  // Minimum price filter (null = no minimum)
+        maxPrice: null   // Maximum price filter (null = no maximum)
     }
 };
 
-// DOM Elements
-const searchInput = document.getElementById('searchInput');
-const searchBtn = document.getElementById('searchBtn');
-const storeFilter = document.getElementById('storeFilter');
-const categoryFilter = document.getElementById('categoryFilter');
-const minPriceInput = document.getElementById('minPrice');
-const maxPriceInput = document.getElementById('maxPrice');
-const sortBySelect = document.getElementById('sortBy');
-const loadingState = document.getElementById('loadingState');
-const emptyState = document.getElementById('emptyState');
-const resultsContainer = document.getElementById('resultsContainer');
-const resultsGrid = document.getElementById('resultsGrid');
-const resultsTitle = document.getElementById('resultsTitle');
-const itemModal = document.getElementById('itemModal');
-const modalClose = document.getElementById('modalClose');
-const modalOverlay = document.getElementById('modalOverlay');
-const modalBody = document.getElementById('modalBody');
+// ==================== DOM Element References ====================
 
-// Mock Data Generator (for demo purposes - replace with real API calls)
+/**
+ * Cache frequently accessed DOM elements for performance
+ * Accessing DOM elements is expensive, so we cache them at initialization
+ * 
+ * Organization:
+ * - Search elements: Input, button, filters
+ * - Display elements: Results grid, loading/empty states
+ * - Modal elements: Overlay, close button, body
+ */
+
+// Search and filter controls
+const searchInput = document.getElementById('searchInput');        // Main search input field
+const searchBtn = document.getElementById('searchBtn');            // Search button
+const storeFilter = document.getElementById('storeFilter');        // Store dropdown filter
+const categoryFilter = document.getElementById('categoryFilter');  // Category dropdown filter
+const minPriceInput = document.getElementById('minPrice');         // Minimum price input
+const maxPriceInput = document.getElementById('maxPrice');         // Maximum price input
+const sortBySelect = document.getElementById('sortBy');            // Sort dropdown
+
+// Display state elements
+const loadingState = document.getElementById('loadingState');      // Loading spinner
+const emptyState = document.getElementById('emptyState');          // Empty state message
+const resultsContainer = document.getElementById('resultsContainer'); // Results section container
+const resultsGrid = document.getElementById('resultsGrid');        // Grid of result cards
+const resultsTitle = document.getElementById('resultsTitle');      // Results count title
+
+// Modal elements
+const itemModal = document.getElementById('itemModal');            // Modal overlay
+const modalClose = document.getElementById('modalClose');          // Close button
+const modalOverlay = document.getElementById('modalOverlay');      // Click-to-close overlay
+const modalBody = document.getElementById('modalBody');            // Modal content area
+
+// ==================== Mock Data Generation ====================
+
+/**
+ * Generate mock product data for demonstration purposes
+ * 
+ * This function creates a realistic dataset of products across multiple stores
+ * with historical pricing data. It's used when the backend is not available
+ * or for frontend-only testing.
+ * 
+ * @returns {Array<Object>} Array of mock Item objects
+ * 
+ * Data structure:
+ * - 6 base products (TV, shampoo, dish soap, phone, detergent, toothpaste)
+ * - 3 stores (Walmart, Loblaws, Costco)
+ * - 10 price history entries per product per store
+ * - Price varies ±5% from base price for realistic variation
+ * 
+ * IMPORTANT: Replace this with real API calls in production!
+ * This is only for demonstration and testing without a backend.
+ */
 function generateMockData() {
+    // Store and category definitions
     const stores = ['Walmart', 'Loblaws', 'Costco'];
-    const categories = ['electronics', 'entertainment', 'home', 'baby', 'bath', 'hygiene', 'household', 'cleaning', 'kitchen'];
+    const categories = ['electronics', 'entertainment', 'home', 'baby', 'bath', 
+                       'hygiene', 'household', 'cleaning', 'kitchen'];
+    
+    // Base product templates with realistic price ranges and categories
     const products = [
         { name: 'Samsung 55-inch 4K Smart TV', desc: '55-inch Crystal UHD Smart TV with HDR', priceRange: [650, 810], categories: ['electronics', 'entertainment', 'home'] },
         { name: "Johnson's Baby Shampoo", desc: 'No tears formula 500ml', priceRange: [7, 10], categories: ['baby', 'bath', 'hygiene'] },
@@ -74,22 +156,51 @@ function generateMockData() {
     return mockItems;
 }
 
-// Initialize App
+// ==================== Application Initialization ====================
+
+/**
+ * Initialize the Budgeteer application
+ * 
+ * This is the main entry point for the application. It's called when
+ * the DOM is fully loaded and performs all necessary setup:
+ * 
+ * 1. Load product data (mock or from API)
+ * 2. Extract unique stores and categories
+ * 3. Populate filter dropdowns
+ * 4. Update statistics display
+ * 5. Set up event listeners for user interactions
+ * 
+ * Initialization Flow:
+ *   DOM Ready → initializeApp() → Load Data → Setup UI → Ready
+ * 
+ * @async
+ * @returns {Promise<void>}
+ * 
+ * TODO: Replace generateMockData() with actual API call:
+ *   const response = await fetch(`${API_BASE_URL}/items`);
+ *   state.items = await response.json();
+ */
 async function initializeApp() {
-    // Load mock data (replace with real API calls)
+    // Load product data
+    // DEVELOPMENT: Using mock data for frontend-only testing
+    // PRODUCTION: Replace with: await fetch(`${API_BASE_URL}/items`)
     state.items = generateMockData();
     
-    // Get unique stores and categories
+    // Extract unique stores from dataset
+    // Uses Set to remove duplicates, then converts back to Array
     state.stores = [...new Set(state.items.map(item => item.store))];
+    
+    // Extract unique categories from all items
+    // flatMap combines all category arrays, Set removes duplicates
     state.categories = [...new Set(state.items.flatMap(item => item.category_tags))];
 
-    // Populate filters
+    // Populate filter dropdown options
     populateFilters();
     
-    // Update stats
+    // Display database statistics
     updateStats();
     
-    // Set up event listeners
+    // Attach event listeners to all interactive elements
     setupEventListeners();
 }
 
@@ -137,29 +248,62 @@ function setupEventListeners() {
     modalOverlay.addEventListener('click', closeModal);
 }
 
-// Perform Search
+// ==================== Search Functionality ====================
+
+/**
+ * Perform product search based on user input
+ * 
+ * This function handles the basic search functionality. It searches through
+ * product names and descriptions for matches to the user's query.
+ * 
+ * Search Process:
+ * 1. Validate query (not empty)
+ * 2. Show loading state
+ * 3. Search through products (name + description)
+ * 4. Remove duplicates
+ * 5. Apply filters
+ * 6. Display results
+ * 
+ * Features:
+ * - Case-insensitive matching
+ * - Searches both name and description
+ * - Removes duplicate product/store combinations
+ * - Simulated API delay for realistic UX
+ * 
+ * TODO: Replace mock search with backend API call:
+ *   const response = await fetch(`${API_BASE_URL}/search?q=${query}`);
+ *   state.filteredItems = await response.json();
+ * 
+ * @returns {void}
+ */
 function performSearch() {
+    // Get and normalize search query
     const query = searchInput.value.trim().toLowerCase();
+    
+    // Validate query
     if (!query) {
         showEmptyState();
         return;
     }
 
+    // Update state and show loading
     state.currentSearch = query;
     showLoadingState();
 
-    // Simulate API delay
+    // Simulate API delay (remove in production)
     setTimeout(() => {
-        // Simple search algorithm (replace with API call to your C++ backend)
+        // MOCK IMPLEMENTATION - Replace with real API call
+        // Search algorithm: check if query appears in name or description
         const results = state.items.filter(item => {
             const nameMatch = item.item_name.toLowerCase().includes(query);
             const descMatch = item.item_description.toLowerCase().includes(query);
             return nameMatch || descMatch;
         });
 
-        // Remove duplicates based on item_id and store
+        // Remove duplicates based on unique item_id + store combination
+        // This prevents showing the same product from the same store multiple times
         const uniqueResults = [];
-        const seen = new Set();
+        const seen = new Set();  // Tracks "itemId-store" combinations
         
         results.forEach(item => {
             const key = `${item.item_id}-${item.store}`;
@@ -169,10 +313,11 @@ function performSearch() {
             }
         });
 
+        // Update filtered results and apply any active filters
         state.filteredItems = uniqueResults;
         applyFilters();
         hideLoadingState();
-    }, 500);
+    }, 500);  // 500ms delay for realistic loading simulation
 }
 
 // Apply Filters
@@ -242,18 +387,54 @@ function displayResults(items) {
     showResultsContainer();
 }
 
-// Create Item Card
+// ==================== UI Component Creation ====================
+
+/**
+ * Create an item card DOM element
+ * 
+ * Generates a styled card element displaying product information.
+ * The card is interactive and opens a detail modal when clicked.
+ * 
+ * Card Components:
+ * - Store badge (color-coded by store)
+ * - Product name
+ * - Description
+ * - Category tags
+ * - Price (formatted to 2 decimals)
+ * - Price date (localized)
+ * 
+ * Design Notes:
+ * - Uses brand colors for each store
+ * - Fully clickable for better UX
+ * - Responsive layout adapts to screen size
+ * - Hover effects for interactivity feedback
+ * 
+ * @param {Object} item - Item object with product data
+ * @param {number} item.item_id - Product ID
+ * @param {string} item.item_name - Product name
+ * @param {string} item.item_description - Product description
+ * @param {number} item.current_price - Current price
+ * @param {string} item.store - Store name
+ * @param {Array<string>} item.category_tags - Category tags
+ * @param {string} item.price_date - Price date (ISO format)
+ * @returns {HTMLElement} Configured card div element
+ */
 function createItemCard(item) {
+    // Create card container
     const card = document.createElement('div');
     card.className = 'item-card';
-    card.onclick = () => showItemDetail(item);
+    card.onclick = () => showItemDetail(item);  // Make entire card clickable
 
+    // Store-specific brand colors
+    // These match the official brand colors of each retailer
     const storeColors = {
-        'Walmart': '#0071CE',
-        'Loblaws': '#ED1B24',
-        'Costco': '#0063A5'
+        'Walmart': '#0071CE',   // Walmart blue
+        'Loblaws': '#ED1B24',   // Loblaws red
+        'Costco': '#0063A5'     // Costco blue
     };
 
+    // Build card HTML using template literal
+    // Inline styles for store badge allow dynamic coloring
     card.innerHTML = `
         <div class="item-header">
             <span class="store-badge" style="background: ${storeColors[item.store] || 'var(--primary)'}">${item.store}</span>
@@ -358,5 +539,16 @@ function showResultsContainer() {
     resultsContainer.classList.remove('hidden');
 }
 
-// Initialize the app when DOM is ready
+// ==================== Application Entry Point ====================
+
+/**
+ * Start the application when DOM is fully loaded
+ * 
+ * This event listener ensures all HTML elements are parsed and available
+ * before JavaScript attempts to access them. This prevents "element not found"
+ * errors and ensures proper initialization order.
+ * 
+ * Event: DOMContentLoaded fires when HTML is parsed (doesn't wait for images/stylesheets)
+ * Alternative: window.onload waits for ALL resources (slower but more complete)
+ */
 document.addEventListener('DOMContentLoaded', initializeApp);
