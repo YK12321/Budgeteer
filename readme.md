@@ -7,9 +7,13 @@ A full-stack price comparison application with C++ backend and modern JavaScript
 Budgeteer helps users find the best prices for products across multiple stores (Walmart, Loblaws, Costco). It features:
 
 - **Backend**: Object-oriented C++ API with intelligent search algorithms
-- **Frontend**: Modern, responsive web application
+- **Frontend**: Modern, responsive web application with AI-powered shopping lists
 - **Database**: CSV-based data storage with 6,678+ price records
 - **Smart Search**: Levenshtein distance algorithm for fuzzy matching
+- **LLM Interface**: Natural language query processing
+- **Real-Time APIs**: Framework for live store price integration
+- **Shopping Lists**: Manual and AI-powered list creation
+- **Price Comparison**: Multi-store comparison with savings recommendations
 
 ## 📁 Project Structure
 
@@ -109,8 +113,9 @@ python -m http.server 8000
 ### Backend Features
 
 ✅ **Object-Oriented Design**
-- Clean separation with Item, Database, and ApiServer classes
+- Clean separation with Item, Database, ApiServer, StoreApiClient, and LLMInterface classes
 - Proper encapsulation and abstraction
+- Modular architecture for easy extension
 
 ✅ **Smart Search Algorithm**
 - Levenshtein distance for fuzzy matching
@@ -125,20 +130,42 @@ python -m http.server 8000
 4. Filter by price range
 5. Get item by ID
 6. Price statistics (min, max, average)
+7. Real-time store searches (framework ready)
+8. Natural language queries
+9. AI shopping list generation
+10. Budget insights
+
+✅ **LLM Natural Language Interface**
+- Intent recognition (search, compare, shopping list, budget)
+- Category expansion (generic → specific products)
+- Query normalization
+- Multiple ranking modes:
+  - Cheapest Mix Mode
+  - Single Store Mode
+  - Budget Insight Mode
+- Formatted text responses
+
+✅ **Real-Time API Integration**
+- StoreApiClient framework for Walmart, Loblaws, Costco
+- Search across all stores simultaneously
+- Price comparison functionality
+- Extensible architecture (ready for API keys)
 
 ✅ **Data Processing**
 - CSV file parsing
 - 6,678+ price records loaded
 - Price history tracking
 - Store and category aggregation
+- In-memory caching support
 
 ### Frontend Features
 
 ✅ **Modern UI/UX**
 - Responsive design (mobile, tablet, desktop)
 - Smooth animations and transitions
-- Intuitive navigation
+- Intuitive tab-based navigation
 - Clean, professional aesthetic
+- Color-coded store branding
 
 ✅ **Search & Filters**
 - Real-time search
@@ -147,17 +174,36 @@ python -m http.server 8000
 - Price range slider
 - Multiple sort options
 
-✅ **Price Comparison**
-- Side-by-side price comparison
-- Price history visualization
-- Store-specific pricing
-- Latest price date display
+✅ **Shopping List Manager** 🆕
+- **Manual Mode**:
+  - Add items by typing
+  - Check off completed items
+  - Remove individual items
+  - Clear entire list
+  - Persistent storage (localStorage)
+  
+- **AI-Powered Mode**:
+  - Natural language input
+  - Budget constraints
+  - Smart list generation
+  - Best price selection
+  - Save to manual list
+
+✅ **Price Comparison** 🆕
+- Compare all list items across stores
+- Side-by-side price table
+- Total cost per store
+- Best store recommendation
+- Savings calculation
+- Beautiful visual presentation
 
 ✅ **Item Details**
 - Modal popup with full details
 - Complete price history
 - Statistical analysis (min, max, avg)
 - Category tags
+- Store-specific pricing
+- Latest price date display
 
 ## 🏗️ Architecture
 
@@ -401,16 +447,30 @@ This project demonstrates:
 - Documentation
 - Version control
 
-## 🚧 Future Enhancements
+## � Documentation
 
-- [ ] Add real HTTP server to backend
+- **[QUICKSTART.md](QUICKSTART.md)**: Get started in 5 minutes
+- **[IMPLEMENTATION.md](IMPLEMENTATION.md)**: Complete implementation details
+- **[API_INTEGRATION.md](API_INTEGRATION.md)**: Real store API integration guide
+- **[SUMMARY.md](SUMMARY.md)**: Project summary and achievements
+- **[LLM-instructions.txt](LLM-instructions.txt)**: LLM interface requirements
+
+## �🚧 Future Enhancements
+
+- [x] Add LLM natural language interface ✅
+- [x] Add shopping list feature ✅
+- [x] Add price comparison ✅
+- [x] Real-time API framework ✅
+- [ ] Add real HTTP server to backend (cpp-httplib)
+- [ ] Connect to real store APIs (API keys needed)
 - [ ] Implement user authentication
 - [ ] Add favorites/wishlist feature
 - [ ] Create price alert system
 - [ ] Add data visualization charts
-- [ ] Implement caching layer
+- [ ] Advanced caching layer
 - [ ] Add unit tests
 - [ ] Deploy to cloud platform
+- [ ] Mobile app version
 
 ## 📝 License
 
