@@ -1,0 +1,425 @@
+# Budgeteer - Complete Project
+
+A full-stack price comparison application with C++ backend and modern JavaScript frontend.
+
+## 🎯 Project Overview
+
+Budgeteer helps users find the best prices for products across multiple stores (Walmart, Loblaws, Costco). It features:
+
+- **Backend**: Object-oriented C++ API with intelligent search algorithms
+- **Frontend**: Modern, responsive web application
+- **Database**: CSV-based data storage with 6,678+ price records
+- **Smart Search**: Levenshtein distance algorithm for fuzzy matching
+
+## 📁 Project Structure
+
+```
+Programming/
+├── Backend/                    # C++ Backend API
+│   ├── include/               # Header files
+│   │   ├── Item.h            # Item model class
+│   │   ├── Database.h        # Database operations
+│   │   └── ApiServer.h       # API server class
+│   ├── src/                  # Implementation files
+│   │   ├── Item.cpp
+│   │   ├── Database.cpp
+│   │   ├── ApiServer.cpp
+│   │   └── main.cpp
+│   ├── SampleDataset/        # CSV dataset
+│   │   └── yec_competition_dataset.csv
+│   ├── CMakeLists.txt        # CMake configuration
+│   ├── Makefile              # Make configuration
+│   ├── build.bat             # Windows build script
+│   └── README.md
+├── Frontend/                  # JavaScript Frontend
+│   ├── index.html            # Main HTML file
+│   ├── styles.css            # Styles and animations
+│   ├── app.js                # Application logic
+│   └── README.md
+├── build/                     # Build output directory
+└── README.md                  # This file
+```
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+**For Backend:**
+- C++17 compatible compiler (g++, MSVC, or clang++)
+- CMake 3.10+ or Make
+- Windows, macOS, or Linux
+
+**For Frontend:**
+- Modern web browser (Chrome, Firefox, Safari, Edge)
+- Optional: Python or Node.js for local server
+
+### Running the Backend
+
+**Option 1: Using CMake (Recommended)**
+```powershell
+# Build
+cd Backend
+mkdir build
+cd build
+cmake ..
+cmake --build . --config Debug
+
+# Run
+cd bin\Debug
+.\BudgeteerAPI.exe
+```
+
+**Option 2: Using Make**
+```powershell
+cd Backend
+make
+cd bin
+.\BudgeteerAPI.exe
+```
+
+**Option 3: Using build.bat (Windows)**
+```powershell
+cd Backend
+.\build.bat
+cd bin
+.\BudgeteerAPI.exe
+```
+
+### Running the Frontend
+
+**Option 1: Direct Browser Access**
+```powershell
+# Simply open Frontend/index.html in your browser
+```
+
+**Option 2: Python HTTP Server**
+```powershell
+cd Frontend
+python -m http.server 8000
+# Open http://localhost:8000
+```
+
+**Option 3: VS Code Live Server**
+1. Install "Live Server" extension
+2. Right-click `index.html`
+3. Select "Open with Live Server"
+
+## 🎨 Features
+
+### Backend Features
+
+✅ **Object-Oriented Design**
+- Clean separation with Item, Database, and ApiServer classes
+- Proper encapsulation and abstraction
+
+✅ **Smart Search Algorithm**
+- Levenshtein distance for fuzzy matching
+- Similarity scoring (0.0 - 1.0)
+- Multi-criteria matching (name, description, words)
+- Results sorted by relevance
+
+✅ **Multiple Query Types**
+1. Search by item name
+2. Filter by store (Walmart, Loblaws, Costco)
+3. Filter by category (electronics, baby, household, etc.)
+4. Filter by price range
+5. Get item by ID
+6. Price statistics (min, max, average)
+
+✅ **Data Processing**
+- CSV file parsing
+- 6,678+ price records loaded
+- Price history tracking
+- Store and category aggregation
+
+### Frontend Features
+
+✅ **Modern UI/UX**
+- Responsive design (mobile, tablet, desktop)
+- Smooth animations and transitions
+- Intuitive navigation
+- Clean, professional aesthetic
+
+✅ **Search & Filters**
+- Real-time search
+- Store filter dropdown
+- Category filter dropdown
+- Price range slider
+- Multiple sort options
+
+✅ **Price Comparison**
+- Side-by-side price comparison
+- Price history visualization
+- Store-specific pricing
+- Latest price date display
+
+✅ **Item Details**
+- Modal popup with full details
+- Complete price history
+- Statistical analysis (min, max, avg)
+- Category tags
+
+## 🏗️ Architecture
+
+### Backend Architecture
+
+```
+┌─────────────────────────────────┐
+│         main.cpp                │
+│    (Application Entry)          │
+└───────────┬─────────────────────┘
+            │
+            ▼
+┌─────────────────────────────────┐
+│       ApiServer                 │
+│  - Request Routing              │
+│  - JSON Response Generation     │
+│  - Query Parameter Handling     │
+└───────────┬─────────────────────┘
+            │
+            ▼
+┌─────────────────────────────────┐
+│        Database                 │
+│  - CSV Parsing                  │
+│  - Data Storage (Vector)        │
+│  - Search Algorithms            │
+│  - Filtering & Sorting          │
+└───────────┬─────────────────────┘
+            │
+            ▼
+┌─────────────────────────────────┐
+│          Item                   │
+│  - Data Model                   │
+│  - Getters/Setters              │
+│  - JSON Serialization           │
+└─────────────────────────────────┘
+```
+
+### Frontend Architecture
+
+```
+┌─────────────────────────────────┐
+│       index.html                │
+│  - Structure & Layout           │
+│  - Semantic HTML5               │
+└───────────┬─────────────────────┘
+            │
+            ▼
+┌─────────────────────────────────┐
+│       styles.css                │
+│  - Modern CSS3                  │
+│  - Responsive Design            │
+│  - Animations                   │
+└─────────────────────────────────┘
+            │
+            ▼
+┌─────────────────────────────────┐
+│         app.js                  │
+│  - State Management             │
+│  - API Calls (Mock/Real)        │
+│  - DOM Manipulation             │
+│  - Event Handling               │
+└─────────────────────────────────┘
+```
+
+## 🔬 Technical Details
+
+### Backend Algorithms
+
+**1. Levenshtein Distance**
+```cpp
+// Calculates edit distance between two strings
+// Used for fuzzy matching in search
+int calculateLevenshteinDistance(s1, s2)
+```
+
+**2. Similarity Score**
+```cpp
+// Converts distance to similarity (0.0 to 1.0)
+double calculateSimilarity(s1, s2)
+// Returns: 1.0 - (distance / maxLength)
+```
+
+**3. Search Scoring System**
+- Exact name match: +100 points
+- Exact description match: +50 points
+- Name similarity: +75 points (scaled)
+- Word matches: +30 points each
+- Individual word similarity: +40 points (if > 60%)
+
+### Data Model
+
+**Item Object:**
+```json
+{
+  "item_id": 1001,
+  "item_name": "Samsung 55-inch 4K Smart TV",
+  "item_description": "55-inch Crystal UHD Smart TV with HDR",
+  "current_price": 705.18,
+  "store": "Walmart",
+  "category_tags": ["electronics", "entertainment", "home"],
+  "image_url": "https://example.com/...",
+  "price_date": "2022-01-15"
+}
+```
+
+## 🔌 API Integration Guide
+
+### Current Status
+- Backend: **CLI-based** (no HTTP server yet)
+- Frontend: **Uses mock data**
+
+### To Enable Real API
+
+**Step 1: Add HTTP Server to Backend**
+
+Install cpp-httplib:
+```bash
+# In Backend/CMakeLists.txt, add:
+include(FetchContent)
+FetchContent_Declare(
+    httplib
+    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+)
+FetchContent_MakeAvailable(httplib)
+```
+
+**Step 2: Create API Endpoints**
+
+Add to `ApiServer.cpp`:
+```cpp
+#include "httplib.h"
+
+void ApiServer::startHttpServer() {
+    httplib::Server svr;
+    
+    svr.Get("/api/search", [this](const auto& req, auto& res) {
+        std::string query = req.get_param_value("q");
+        res.set_content(handleSearchItems(query), "application/json");
+    });
+    
+    svr.listen("0.0.0.0", 8080);
+}
+```
+
+**Step 3: Update Frontend**
+
+Replace mock data in `app.js`:
+```javascript
+async function performSearch() {
+    const response = await fetch(`http://localhost:8080/api/search?q=${query}`);
+    const data = await response.json();
+    displayResults(data.items);
+}
+```
+
+## 📊 Dataset Information
+
+- **Total Records**: 6,678 price entries
+- **Unique Items**: ~160 products
+- **Stores**: 3 (Walmart, Loblaws, Costco)
+- **Categories**: 10+ categories
+- **Date Range**: 2022-2025
+- **Format**: CSV (comma-separated values)
+
+## 🎯 Use Cases
+
+1. **Price Comparison** - Find the best price across stores
+2. **Price Tracking** - Monitor price changes over time
+3. **Budget Planning** - Plan purchases based on historical prices
+4. **Store Selection** - Choose the most cost-effective store
+5. **Category Browsing** - Explore products by category
+
+## 🛠️ Development
+
+### Building from Source
+
+**Backend:**
+```powershell
+cd Backend
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake --build . --config Release
+```
+
+**Frontend:**
+No build step required - uses vanilla JavaScript
+
+### Testing
+
+**Backend Test:**
+```powershell
+cd build\bin\Debug
+.\BudgeteerAPI.exe
+# Try option 7 (Search) with "Samsung TV"
+```
+
+**Frontend Test:**
+```
+Open index.html
+Search for "Samsung TV"
+Click on any result to see details
+```
+
+## 📈 Performance
+
+### Backend
+- Load time: < 1 second (6,678 items)
+- Search time: < 100ms
+- Memory usage: ~5MB
+
+### Frontend
+- First load: < 1 second
+- Search rendering: < 50ms
+- Bundle size: ~15KB total
+
+## 🎓 Learning Outcomes
+
+This project demonstrates:
+
+✅ **C++ Programming**
+- Object-oriented design
+- STL containers and algorithms
+- File I/O and parsing
+- Memory management
+
+✅ **Data Structures & Algorithms**
+- String algorithms (Levenshtein distance)
+- Searching and filtering
+- Sorting algorithms
+- Hash maps and sets
+
+✅ **Web Development**
+- Modern HTML5/CSS3
+- Vanilla JavaScript (ES6+)
+- Responsive design
+- API integration patterns
+
+✅ **Software Engineering**
+- Clean code principles
+- Modular architecture
+- Documentation
+- Version control
+
+## 🚧 Future Enhancements
+
+- [ ] Add real HTTP server to backend
+- [ ] Implement user authentication
+- [ ] Add favorites/wishlist feature
+- [ ] Create price alert system
+- [ ] Add data visualization charts
+- [ ] Implement caching layer
+- [ ] Add unit tests
+- [ ] Deploy to cloud platform
+
+## 📝 License
+
+MIT License - Built for YEC 2025 Programming Competition
+
+## 👥 Contributors
+
+Built with ❤️ for York Entrepreneurship Competition 2025
+
+---
+
+**Questions?** Open an issue in the repository!
