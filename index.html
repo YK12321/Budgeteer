@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budgeteer - Smart Price Comparison</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                        <rect width="32" height="32" rx="8" fill="#4F46E5"/>
+                        <path d="M8 12L16 8L24 12V20L16 24L8 20V12Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M16 24V16" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M8 12L16 16L24 12" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <h1>Budgeteer</h1>
+                </div>
+                <nav class="nav">
+                    <a href="#search" class="nav-link active">Search</a>
+                    <a href="#stores" class="nav-link">Stores</a>
+                    <a href="#categories" class="nav-link">Categories</a>
+                    <a href="#about" class="nav-link">About</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h2 class="hero-title">Find the Best Prices</h2>
+                <p class="hero-subtitle">Compare prices across Walmart, Loblaws, and Costco to save money on your shopping</p>
+                
+                <!-- Search Bar -->
+                <div class="search-section">
+                    <div class="search-bar">
+                        <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M9 17C13.4183 17 17 13.4183 17 9C17 4.58172 13.4183 1 9 1C4.58172 1 1 4.58172 1 9C1 13.4183 4.58172 17 9 17Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M19 19L14.65 14.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <input type="text" id="searchInput" class="search-input" placeholder="Search for products (e.g., Samsung TV, Baby Shampoo, Dish Soap)">
+                        <button id="searchBtn" class="search-button">Search</button>
+                    </div>
+                    
+                    <!-- Filters -->
+                    <div class="filters">
+                        <select id="storeFilter" class="filter-select">
+                            <option value="">All Stores</option>
+                        </select>
+                        <select id="categoryFilter" class="filter-select">
+                            <option value="">All Categories</option>
+                        </select>
+                        <div class="price-filter">
+                            <input type="number" id="minPrice" class="price-input" placeholder="Min $">
+                            <span class="price-separator">-</span>
+                            <input type="number" id="maxPrice" class="price-input" placeholder="Max $">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="quick-stats" id="quickStats">
+                    <div class="stat-card">
+                        <span class="stat-label">Total Items</span>
+                        <span class="stat-value" id="totalItems">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Stores</span>
+                        <span class="stat-value" id="totalStores">3</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Categories</span>
+                        <span class="stat-value" id="totalCategories">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Results Section -->
+    <section class="results-section">
+        <div class="container">
+            <!-- Loading State -->
+            <div id="loadingState" class="loading-state hidden">
+                <div class="spinner"></div>
+                <p>Searching for the best prices...</p>
+            </div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="empty-state">
+                <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+                    <circle cx="32" cy="32" r="32" fill="#F3F4F6"/>
+                    <path d="M28 42C35.732 42 42 35.732 42 28C42 20.268 35.732 14 28 14C20.268 14 14 20.268 14 28C14 35.732 20.268 42 28 42Z" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M50 50L38.65 38.65" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <h3>Start Your Search</h3>
+                <p>Enter a product name to find the best prices across multiple stores</p>
+            </div>
+
+            <!-- Results Grid -->
+            <div id="resultsContainer" class="results-container hidden">
+                <div class="results-header">
+                    <h3 id="resultsTitle">Search Results</h3>
+                    <div class="results-actions">
+                        <select id="sortBy" class="sort-select">
+                            <option value="relevance">Sort by: Relevance</option>
+                            <option value="price-asc">Price: Low to High</option>
+                            <option value="price-desc">Price: High to Low</option>
+                            <option value="name">Name: A to Z</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="resultsGrid" class="results-grid"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Item Detail Modal -->
+    <div id="itemModal" class="modal hidden">
+        <div class="modal-overlay" id="modalOverlay"></div>
+        <div class="modal-content">
+            <button class="modal-close" id="modalClose">&times;</button>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Budgeteer</h4>
+                    <p>Your smart shopping companion for comparing prices and saving money.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Features</h4>
+                    <ul>
+                        <li>Real-time price comparison</li>
+                        <li>Multiple store support</li>
+                        <li>Price history tracking</li>
+                        <li>Smart search with similarity matching</li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Stores</h4>
+                    <ul>
+                        <li>Walmart</li>
+                        <li>Loblaws</li>
+                        <li>Costco</li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Tech Stack</h4>
+                    <ul>
+                        <li>C++ Backend API</li>
+                        <li>Object-Oriented Design</li>
+                        <li>Levenshtein Distance Algorithm</li>
+                        <li>Modern JavaScript Frontend</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 Budgeteer. Built with ❤️ for YEC 2025 Programming Competition</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
