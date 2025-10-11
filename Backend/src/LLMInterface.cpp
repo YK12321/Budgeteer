@@ -5,10 +5,10 @@
 #include <iomanip>
 #include <cctype>
 #include <cstdlib>
+#include <set>
 
-#ifdef _WIN32
-    #define CPPHTTPLIB_OPENSSL_SUPPORT
-#endif
+// Enable SSL support for HTTPS connections to GitHub API
+#define CPPHTTPLIB_OPENSSL_SUPPORT
 
 #include <httplib.h>
 #include <nlohmann/json.hpp>
@@ -26,11 +26,13 @@ LLMInterface::LLMInterface(std::shared_ptr<StoreApiClient> client)
     
     // Try to get API key from environment variable (GitHub token)
     const char* envKey = std::getenv("GITHUB_TOKEN");
-    if (envKey != nullptr) {
+    if (envKey != nullptr && strlen(envKey) > 0) {
         openaiApiKey = envKey;
-        std::cout << "[LLM] GitHub API token loaded from environment" << std::endl;
+        std::cout << "[LLM] GitHub API token loaded from environment (length: " 
+                  << strlen(envKey) << " chars)" << std::endl;
     } else {
         std::cout << "[LLM] Warning: GITHUB_TOKEN not found. Set it with setOpenAIKey() or environment variable." << std::endl;
+        std::cout << "[LLM] Debug: envKey pointer = " << (void*)envKey << std::endl;
         useGPT = false;  // Disable GPT if no key
     }
     
@@ -90,10 +92,11 @@ std::string LLMInterface::callGPTAPI(const std::string& prompt) {
     try {
         std::cout << "[LLM] Calling GPT-4o-mini via GitHub Models API..." << std::endl;
         
-        // Create HTTPS client for GitHub Models API
+        // Create HTTPS client for GitHub Models API with SSL support
         httplib::SSLClient cli("models.github.ai");
         cli.set_connection_timeout(10, 0);  // 10 seconds
         cli.set_read_timeout(30, 0);        // 30 seconds
+        cli.enable_server_certificate_verification(true);
         
         // Build request body
         json requestBody = {
@@ -101,9 +104,17 @@ std::string LLMInterface::callGPTAPI(const std::string& prompt) {
             {"messages", json::array({
                 {
                     {"role", "system"},
-                    {"content", "You are a helpful shopping assistant for Budgeteer, a price comparison app. "
-                               "Your job is to understand user queries about products, prices, and shopping needs. "
-                               "Be concise, accurate, and helpful. Focus on extracting product names, stores, and budget constraints."}
+                    {"content", "You are Budgie, a helpful shopping assistant for Budgeteer, a price comparison app. "
+                               "Your role is to assist users with product, pricing, and shopping inquiries. Follow these guidelines:\n\n"
+                               "1. Understand and interpret user queries to identify product names, stores, and budget constraints.\n"
+                               "2. Provide concise, accurate, and context-aware responses that prioritize user satisfaction.\n"
+                               "3. Depending on the user's needs, either:\n"
+                               "   - Send a clear text response to clarify their intent or request additional details.\n"
+                               "   - Generate a list of items based on the user's input, starting with generic options if specifics are not provided "
+                               "(e.g., suggest common ingredients like flour, sugar, and eggs for a cake recipe if only 'cake ingredients' are requested).\n"
+                               "4. Enable users to edit generated lists by adding or removing items as directed.\n"
+                               "5. Use generic products available in common stores such as Walmart, Costco, and Loblaws, and avoid suggesting items unlikely to be locally accessible.\n\n"
+                               "Focus on clarity, user satisfaction, and adherence to the provided query context and constraints."}
                 },
                 {
                     {"role", "user"},
@@ -118,11 +129,11 @@ std::string LLMInterface::callGPTAPI(const std::string& prompt) {
         
         // Set headers for GitHub API
         httplib::Headers headers = {
-            {"Content-Type", "application/json"},
             {"Authorization", "Bearer " + openaiApiKey}
         };
         
         // Make POST request to GitHub Models API
+        // Let the library set Content-Type via the 4th parameter
         auto res = cli.Post("/inference/chat/completions", headers, body, "application/json");
         
         if (res && res->status == 200) {
@@ -146,21 +157,395 @@ std::string LLMInterface::callGPTAPI(const std::string& prompt) {
     return "";
 }
 
+std::vector<Item> LLMInterface::cherryPickRelevantItems(const std::string& query, const std::vector<Item>& items) {
+    // OPTIMIZATION: If we already have a manageable number of items, skip GPT cherry-picking
+    if (items.size() <= 20) {
+        std::cout << "[LLM] Only " << items.size() << " items, skipping cherry-pick" << std::endl;
+        return items;
+    }
+    
+    if (!canMakeGPTRequest()) {
+        std::cout << "[LLM] Query limit reached, skipping cherry-pick filtering" << std::endl;
+        // Return top 20 items as fallback
+        std::vector<Item> fallback(items.begin(), items.begin() + std::min(20, (int)items.size()));
+        return fallback;
+    }
+    
+    try {
+        // Build a list of unique product names from the search results
+        std::set<std::string> uniqueNames;
+        for (const auto& item : items) {
+            uniqueNames.insert(item.getItemName());
+        }
+        
+        // OPTIMIZATION: Reduced from 100 to 50 for token efficiency
+        // Create a compact list of products for GPT to review
+        std::ostringstream productList;
+        int count = 0;
+        for (const auto& name : uniqueNames) {
+            if (count >= 50) break;  // Reduced limit for token efficiency
+            productList << (count + 1) << ". " << name << "\n";
+            count++;
+        }
+        
+        // Build cherry-picking prompt
+        std::ostringstream cherryPickPrompt;
+        cherryPickPrompt << "User's original query: \"" << query << "\"\n\n";
+        cherryPickPrompt << "I found " << std::min((int)uniqueNames.size(), 50) << " unique products. ";
+        cherryPickPrompt << "Please select ONLY the products that are DIRECTLY relevant to the user's query.\n\n";
+        cherryPickPrompt << "Rules:\n";
+        cherryPickPrompt << "1. Only include products that match the user's intent\n";
+        cherryPickPrompt << "2. Exclude unrelated products (e.g., exclude 'Apple Watch' when user wants 'apples')\n";
+        cherryPickPrompt << "3. For shopping lists, select 8-15 diverse items that fulfill the request\n";
+        cherryPickPrompt << "4. Prioritize variety and common grocery items\n\n";
+        cherryPickPrompt << "Available products:\n" << productList.str() << "\n";
+        cherryPickPrompt << "IMPORTANT: Return ONLY a raw JSON array of product names. Do NOT wrap it in markdown code blocks.\n";
+        cherryPickPrompt << "Format: [\"Product Name 1\", \"Product Name 2\", ...]\n";
+        cherryPickPrompt << "Your response must start with [ and end with ].";
+        
+        std::cout << "[LLM] Asking GPT to cherry-pick relevant items..." << std::endl;
+        std::string gptResponse = callGPTAPI(cherryPickPrompt.str());
+        
+        if (gptResponse.empty()) {
+            std::cout << "[LLM] Cherry-pick failed, returning top 20 items" << std::endl;
+            std::vector<Item> fallback(items.begin(), items.begin() + std::min(20, (int)items.size()));
+            return fallback;
+        }
+        
+        // Clean response
+        std::string cleanedResponse = gptResponse;
+        
+        // Remove markdown code blocks
+        size_t startPos = cleanedResponse.find("```json");
+        if (startPos != std::string::npos) {
+            cleanedResponse = cleanedResponse.substr(startPos + 7);
+        } else {
+            startPos = cleanedResponse.find("```");
+            if (startPos != std::string::npos) {
+                cleanedResponse = cleanedResponse.substr(startPos + 3);
+            }
+        }
+        
+        size_t endPos = cleanedResponse.rfind("```");
+        if (endPos != std::string::npos) {
+            cleanedResponse = cleanedResponse.substr(0, endPos);
+        }
+        
+        // Trim whitespace
+        size_t first = cleanedResponse.find_first_not_of(" \n\r\t");
+        if (first == std::string::npos) {
+            cleanedResponse = "";
+        } else {
+            size_t last = cleanedResponse.find_last_not_of(" \n\r\t");
+            cleanedResponse = cleanedResponse.substr(first, last - first + 1);
+        }
+        
+        std::cout << "[LLM] Cherry-pick response: " << cleanedResponse.substr(0, 100) << "..." << std::endl;
+        
+        // Parse the JSON array
+        json selectedNames = json::parse(cleanedResponse);
+        
+        if (!selectedNames.is_array()) {
+            std::cerr << "[LLM] Cherry-pick response is not an array" << std::endl;
+            std::vector<Item> fallback(items.begin(), items.begin() + std::min(20, (int)items.size()));
+            return fallback;
+        }
+        
+        // Convert to set for fast lookup
+        std::set<std::string> selectedSet;
+        for (const auto& name : selectedNames) {
+            if (name.is_string()) {
+                selectedSet.insert(name.get<std::string>());
+            }
+        }
+        
+        // Filter items based on selected names
+        std::vector<Item> filteredItems;
+        for (const auto& item : items) {
+            if (selectedSet.count(item.getItemName()) > 0) {
+                filteredItems.push_back(item);
+            }
+        }
+        
+        std::cout << "[LLM] Filtered " << items.size() << " items down to " << filteredItems.size() << std::endl;
+        
+        return filteredItems;
+        
+    } catch (const std::exception& e) {
+        std::cerr << "[LLM] Error in cherry-pick: " << e.what() << std::endl;
+        // Return top 20 items as fallback
+        std::vector<Item> fallback(items.begin(), items.begin() + std::min(20, (int)items.size()));
+        return fallback;
+    }
+}
+
+LLMInterface::ReasoningResult LLMInterface::reasonAboutShoppingList(const std::string& originalQuery, const std::vector<std::string>& currentItems) {
+    ReasoningResult result;
+    result.isComplete = false;
+    
+    if (!canMakeGPTRequest()) {
+        std::cout << "[LLM] Query limit reached, skipping reasoning step" << std::endl;
+        result.isComplete = true;  // Assume complete if we can't reason
+        result.reasoning = "Query limit reached, unable to perform reasoning validation.";
+        return result;
+    }
+    
+    try {
+        // Build reasoning prompt
+        std::ostringstream reasoningPrompt;
+        reasoningPrompt << "User's original request: \"" << originalQuery << "\"\n\n";
+        reasoningPrompt << "Current shopping list:\n";
+        // OPTIMIZATION: Limit list size in prompt to save tokens
+        int maxItemsToShow = std::min(30, (int)currentItems.size());
+        for (int i = 0; i < maxItemsToShow; i++) {
+            reasoningPrompt << (i + 1) << ". " << currentItems[i] << "\n";
+        }
+        if (currentItems.size() > maxItemsToShow) {
+            reasoningPrompt << "... and " << (currentItems.size() - maxItemsToShow) << " more items\n";
+        }
+        reasoningPrompt << "\n";
+        reasoningPrompt << "Task: Analyze if this shopping list logically satisfies the user's request.\n\n";
+        reasoningPrompt << "Consider:\n";
+        reasoningPrompt << "1. Does the user's request imply a specific recipe or purpose? (e.g., 'cake ingredients' implies baking)\n";
+        reasoningPrompt << "2. Are there essential items missing that would typically be needed? (e.g., eggs, flour, sugar for a cake)\n";
+        reasoningPrompt << "3. Are there any items that don't belong or seem unnecessary?\n";
+        reasoningPrompt << "4. Is there reasonable variety and completeness?\n";
+        reasoningPrompt << "5. Suggest max 3-4 missing items if needed\n\n";
+        reasoningPrompt << "IMPORTANT: Return ONLY a raw JSON object. Do NOT wrap it in markdown code blocks.\n";
+        reasoningPrompt << "Format:\n";
+        reasoningPrompt << "{\n";
+        reasoningPrompt << "  \"is_complete\": true/false,\n";
+        reasoningPrompt << "  \"reasoning\": \"brief explanation of your analysis\",\n";
+        reasoningPrompt << "  \"missing_items\": [\"item1\", \"item2\", ...],\n";
+        reasoningPrompt << "  \"unnecessary_items\": [\"item3\", \"item4\", ...]\n";
+        reasoningPrompt << "}\n\n";
+        reasoningPrompt << "Your response must start with { and end with }.";
+        
+        std::cout << "[LLM] Reasoning about shopping list completeness..." << std::endl;
+        std::string gptResponse = callGPTAPI(reasoningPrompt.str());
+        
+        if (gptResponse.empty()) {
+            std::cout << "[LLM] Reasoning failed, assuming list is complete" << std::endl;
+            result.isComplete = true;
+            result.reasoning = "Unable to validate - assuming list is complete.";
+            return result;
+        }
+        
+        // Clean response
+        std::string cleanedResponse = gptResponse;
+        
+        // Remove markdown code blocks
+        size_t startPos = cleanedResponse.find("```json");
+        if (startPos != std::string::npos) {
+            cleanedResponse = cleanedResponse.substr(startPos + 7);
+        } else {
+            startPos = cleanedResponse.find("```");
+            if (startPos != std::string::npos) {
+                cleanedResponse = cleanedResponse.substr(startPos + 3);
+            }
+        }
+        
+        size_t endPos = cleanedResponse.rfind("```");
+        if (endPos != std::string::npos) {
+            cleanedResponse = cleanedResponse.substr(0, endPos);
+        }
+        
+        // Trim whitespace
+        size_t first = cleanedResponse.find_first_not_of(" \n\r\t");
+        if (first == std::string::npos) {
+            cleanedResponse = "";
+        } else {
+            size_t last = cleanedResponse.find_last_not_of(" \n\r\t");
+            cleanedResponse = cleanedResponse.substr(first, last - first + 1);
+        }
+        
+        std::cout << "[LLM] Reasoning response: " << cleanedResponse.substr(0, 150) << "..." << std::endl;
+        
+        // Parse JSON response
+        json parsed = json::parse(cleanedResponse);
+        
+        result.isComplete = parsed.value("is_complete", false);
+        result.reasoning = parsed.value("reasoning", "No reasoning provided");
+        
+        if (parsed.contains("missing_items") && parsed["missing_items"].is_array()) {
+            for (const auto& item : parsed["missing_items"]) {
+                if (item.is_string()) {
+                    result.missingItems.push_back(item.get<std::string>());
+                }
+            }
+        }
+        
+        if (parsed.contains("unnecessary_items") && parsed["unnecessary_items"].is_array()) {
+            for (const auto& item : parsed["unnecessary_items"]) {
+                if (item.is_string()) {
+                    result.unnecessaryItems.push_back(item.get<std::string>());
+                }
+            }
+        }
+        
+        std::cout << "[LLM] Reasoning result: " << (result.isComplete ? "Complete" : "Incomplete") << std::endl;
+        std::cout << "[LLM] Missing items: " << result.missingItems.size() << ", Unnecessary items: " << result.unnecessaryItems.size() << std::endl;
+        
+        return result;
+        
+    } catch (const std::exception& e) {
+        std::cerr << "[LLM] Error in reasoning: " << e.what() << std::endl;
+        result.isComplete = true;  // Assume complete on error
+        result.reasoning = "Error during reasoning validation.";
+        return result;
+    }
+}
+
+std::vector<Item> LLMInterface::refineShoppingListWithReasoning(const std::string& query, std::vector<Item> initialItems, int maxIterations) {
+    std::cout << "[LLM] Starting reasoning-based refinement (max " << maxIterations << " iterations)..." << std::endl;
+    
+    std::vector<Item> currentItems = initialItems;
+    std::set<std::string> currentItemNames;
+    
+    for (const auto& item : currentItems) {
+        currentItemNames.insert(item.getItemName());
+    }
+    
+    for (int iteration = 0; iteration < maxIterations; iteration++) {
+        std::cout << "[LLM] Reasoning iteration " << (iteration + 1) << "/" << maxIterations << std::endl;
+        
+        // Convert current items to name list
+        std::vector<std::string> nameList;
+        for (const auto& name : currentItemNames) {
+            nameList.push_back(name);
+        }
+        
+        // Reason about the current list
+        ReasoningResult reasoning = reasonAboutShoppingList(query, nameList);
+        
+        std::cout << "[LLM] Reasoning: " << reasoning.reasoning << std::endl;
+        
+        if (reasoning.isComplete && reasoning.missingItems.empty() && reasoning.unnecessaryItems.empty()) {
+            std::cout << "[LLM] List is complete after " << (iteration + 1) << " iteration(s)" << std::endl;
+            break;
+        }
+        
+        bool listModified = false;
+        
+        // Remove unnecessary items
+        if (!reasoning.unnecessaryItems.empty()) {
+            std::cout << "[LLM] Removing " << reasoning.unnecessaryItems.size() << " unnecessary items..." << std::endl;
+            for (const auto& unnecessaryItem : reasoning.unnecessaryItems) {
+                if (currentItemNames.erase(unnecessaryItem) > 0) {
+                    std::cout << "[LLM]   - Removed: " << unnecessaryItem << std::endl;
+                    listModified = true;
+                }
+            }
+        }
+        
+        // Add missing items
+        if (!reasoning.missingItems.empty()) {
+            std::cout << "[LLM] Searching for " << reasoning.missingItems.size() << " missing items..." << std::endl;
+            for (const auto& missingItem : reasoning.missingItems) {
+                // Check if already in the list
+                if (currentItemNames.count(missingItem) > 0) {
+                    std::cout << "[LLM]   - Already have: " << missingItem << std::endl;
+                    continue;
+                }
+                
+                // Search for the missing item
+                auto searchResults = storeClient->searchAllStores(missingItem);
+                if (!searchResults.empty()) {
+                    // Find the best match by checking if the item name contains the search term
+                    // This prevents "flour" from matching "Enfamil Formula" or "sugar" from matching "iPad Air"
+                    Item* bestMatch = nullptr;
+                    std::string lowerMissingItem = missingItem;
+                    std::transform(lowerMissingItem.begin(), lowerMissingItem.end(), 
+                                 lowerMissingItem.begin(), ::tolower);
+                    
+                    // Look for exact or close match in item name
+                    for (auto& result : searchResults) {
+                        std::string lowerItemName = result.getItemName();
+                        std::transform(lowerItemName.begin(), lowerItemName.end(), 
+                                     lowerItemName.begin(), ::tolower);
+                        
+                        // Check if item name starts with or contains the search term as a word
+                        bool isGoodMatch = false;
+                        
+                        // Check if it starts with the search term
+                        if (lowerItemName.find(lowerMissingItem) == 0) {
+                            isGoodMatch = true;
+                        }
+                        // Check if search term appears as a complete word
+                        else if (lowerItemName.find(" " + lowerMissingItem + " ") != std::string::npos ||
+                                 lowerItemName.find(" " + lowerMissingItem) == lowerItemName.length() - lowerMissingItem.length() - 1) {
+                            isGoodMatch = true;
+                        }
+                        // For short search terms (like "eggs"), check more carefully
+                        else if (lowerMissingItem.length() <= 5 && lowerItemName.find(lowerMissingItem) != std::string::npos) {
+                            // Make sure it's not part of a larger word
+                            size_t pos = lowerItemName.find(lowerMissingItem);
+                            bool beforeOk = (pos == 0 || lowerItemName[pos-1] == ' ' || lowerItemName[pos-1] == '(');
+                            bool afterOk = (pos + lowerMissingItem.length() >= lowerItemName.length() || 
+                                          lowerItemName[pos + lowerMissingItem.length()] == ' ' ||
+                                          lowerItemName[pos + lowerMissingItem.length()] == ')' ||
+                                          lowerItemName[pos + lowerMissingItem.length()] == '(');
+                            if (beforeOk && afterOk) {
+                                isGoodMatch = true;
+                            }
+                        }
+                        
+                        if (isGoodMatch) {
+                            bestMatch = &result;
+                            break;  // Take first good match
+                        }
+                    }
+                    
+                    // If we found a good match, use it; otherwise skip this item
+                    if (bestMatch != nullptr) {
+                        currentItems.push_back(*bestMatch);
+                        currentItemNames.insert(bestMatch->getItemName());
+                        std::cout << "[LLM]   + Added: " << bestMatch->getItemName() << std::endl;
+                        listModified = true;
+                    } else {
+                        std::cout << "[LLM]   ✗ No good match found for: " << missingItem << " (skipping)" << std::endl;
+                    }
+                }
+            }
+        }
+        
+        // If no modifications were made, break to avoid infinite loop
+        if (!listModified) {
+            std::cout << "[LLM] No modifications made in this iteration, stopping refinement" << std::endl;
+            break;
+        }
+    }
+    
+    // Filter the final item list to only include items with names in currentItemNames
+    std::vector<Item> finalItems;
+    for (const auto& item : currentItems) {
+        if (currentItemNames.count(item.getItemName()) > 0) {
+            finalItems.push_back(item);
+        }
+    }
+    
+    std::cout << "[LLM] Refinement complete. Final list has " << currentItemNames.size() << " unique items" << std::endl;
+    
+    return finalItems;
+}
+
 std::string LLMInterface::buildPrompt(const std::string& query, const std::string& context) {
     std::ostringstream prompt;
-    prompt << "User query: \"" << query << "\"\n\n";
+    prompt << "User query: " << query << "\n\n";
     
     if (!context.empty()) {
         prompt << "Context: " << context << "\n\n";
     }
     
-    prompt << "Please analyze this query and provide:\n";
+    prompt << "Please analyze this query and provide:\n\n";
     prompt << "1. Intent (search/compare/shopping_list/budget)\n";
     prompt << "2. Product names or categories mentioned\n";
     prompt << "3. Any budget constraints\n";
     prompt << "4. Store preferences if mentioned\n";
     prompt << "5. Suggested search terms for our database\n\n";
-    prompt << "Format your response as JSON with keys: intent, products, budget, stores, search_terms";
+    prompt << "IMPORTANT: Return ONLY a raw JSON object. Do NOT wrap it in markdown code blocks or use ```json. ";
+    prompt << "Your response must start with { and end with }.\n\n";
+    prompt << "Format: {\"intent\": \"...\", \"products\": [...], \"budget\": null or number, \"stores\": [...], \"search_terms\": [...]}";
     
     return prompt.str();
 }
@@ -370,8 +755,41 @@ std::string LLMInterface::processQueryWithGPT(const std::string& query, Mode mod
     }
     
     try {
+        // Strip markdown code blocks if present (```json ... ``` or ``` ... ```)
+        std::string cleanedResponse = gptResponse;
+        
+        // Remove opening code block
+        size_t startPos = cleanedResponse.find("```json");
+        if (startPos != std::string::npos) {
+            // Found ```json, skip it and the following newline
+            cleanedResponse = cleanedResponse.substr(startPos + 7);
+        } else {
+            startPos = cleanedResponse.find("```");
+            if (startPos != std::string::npos) {
+                // Found ```, skip it and the following newline
+                cleanedResponse = cleanedResponse.substr(startPos + 3);
+            }
+        }
+        
+        // Remove closing code block
+        size_t endPos = cleanedResponse.rfind("```");
+        if (endPos != std::string::npos) {
+            cleanedResponse = cleanedResponse.substr(0, endPos);
+        }
+        
+        // Trim all whitespace (including newlines, tabs, spaces)
+        size_t first = cleanedResponse.find_first_not_of(" \n\r\t");
+        if (first == std::string::npos) {
+            cleanedResponse = "";
+        } else {
+            size_t last = cleanedResponse.find_last_not_of(" \n\r\t");
+            cleanedResponse = cleanedResponse.substr(first, last - first + 1);
+        }
+        
+        std::cout << "[LLM] Cleaned JSON: " << cleanedResponse.substr(0, 100) << "..." << std::endl;
+        
         // Parse GPT response
-        json parsed = json::parse(gptResponse);
+        json parsed = json::parse(cleanedResponse);
         
         // Extract search terms
         std::vector<std::string> searchTerms;
@@ -399,8 +817,35 @@ std::string LLMInterface::processQueryWithGPT(const std::string& query, Mode mod
             return "I couldn't find any products matching your query. Try being more specific or use different keywords.";
         }
         
+        // Cherry-pick relevant items using GPT
+        std::cout << "[LLM] Found " << allItems.size() << " items, cherry-picking relevant ones..." << std::endl;
+        std::vector<Item> filteredItems = cherryPickRelevantItems(query, allItems);
+        
+        if (filteredItems.empty()) {
+            return "I couldn't find any products that specifically match your query. Try being more specific or use different keywords.";
+        }
+        
+        std::cout << "[LLM] Cherry-picked " << filteredItems.size() << " relevant items" << std::endl;
+        
+        // Apply reasoning-based refinement for complex queries that might need logical completion
+        // (e.g., "cake ingredients" should include flour, eggs, sugar, etc.)
+        std::string lowerQuery = query;
+        std::transform(lowerQuery.begin(), lowerQuery.end(), lowerQuery.begin(), ::tolower);
+        
+        bool needsReasoning = (lowerQuery.find("ingredients") != std::string::npos ||
+                              lowerQuery.find("recipe") != std::string::npos ||
+                              lowerQuery.find("make a") != std::string::npos ||
+                              lowerQuery.find("bake") != std::string::npos ||
+                              lowerQuery.find("cook") != std::string::npos ||
+                              lowerQuery.find("prepare") != std::string::npos);
+        
+        if (needsReasoning) {
+            std::cout << "[LLM] Query requires logical reasoning - refining list..." << std::endl;
+            filteredItems = refineShoppingListWithReasoning(query, filteredItems, 3);
+        }
+        
         // Format response
-        return formatResponse(allItems, mode);
+        return formatResponse(filteredItems, mode);
         
     } catch (const json::exception& e) {
         std::cerr << "[LLM] Error parsing GPT response: " << e.what() << std::endl;

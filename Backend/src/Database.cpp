@@ -211,6 +211,10 @@ std::vector<Item> Database::searchItems(const std::string& searchTerm) const {
     // Split search term into words
     std::vector<std::string> searchWords = splitString(searchTerm, ' ');
     
+    // OPTIMIZATION: Use a score threshold to filter early
+    const double MIN_SCORE_THRESHOLD = 15.0;
+    const int MAX_RESULTS = 50;  // Limit results for token efficiency
+    
     for (const auto& item : items) {
         double score = 0.0;
         std::string itemName = item.getItemName();
@@ -221,43 +225,42 @@ std::vector<Item> Database::searchItems(const std::string& searchTerm) const {
         std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
         std::transform(lowerDesc.begin(), lowerDesc.end(), lowerDesc.begin(), ::tolower);
         
-        // Exact match in name (highest priority)
-        if (lowerName.find(lowerSearchTerm) != std::string::npos) {
-            score += 100.0;
+        // OPTIMIZATION 1: Exact/prefix match gets massive boost (helps with "flour", "sugar", etc.)
+        if (lowerName == lowerSearchTerm) {
+            score += 200.0;  // Perfect match
+        } else if (lowerName.find(lowerSearchTerm + " ") == 0 || 
+                   lowerName.find(lowerSearchTerm + " (") == 0) {
+            score += 150.0;  // Starts with search term (e.g., "Flour (5kg)")
+        } else if (lowerName.find(lowerSearchTerm) != std::string::npos) {
+            score += 100.0;  // Contains search term
         }
         
-        // Exact match in description
+        // Exact match in description (lower priority)
         if (lowerDesc.find(lowerSearchTerm) != std::string::npos) {
-            score += 50.0;
+            score += 40.0;
         }
         
-        // Calculate similarity score for the full name
-        double nameSimilarity = calculateSimilarity(lowerSearchTerm, lowerName);
-        score += nameSimilarity * 75.0;
+        // OPTIMIZATION 2: Only calculate expensive similarity if we don't have a good match yet
+        if (score < 100.0) {
+            // Calculate similarity score for the full name
+            double nameSimilarity = calculateSimilarity(lowerSearchTerm, lowerName);
+            score += nameSimilarity * 60.0;
+        }
         
         // Check individual words for partial matches
         for (const auto& word : searchWords) {
             if (word.length() >= 3) {  // Only check words with 3+ characters
                 if (containsWord(itemName, word)) {
-                    score += 30.0;
+                    score += 25.0;
                 }
                 if (containsWord(itemDesc, word)) {
-                    score += 15.0;
+                    score += 10.0;
                 }
             }
         }
         
-        // Calculate similarity for individual words in the item name
-        std::vector<std::string> nameWords = splitString(itemName, ' ');
-        for (const auto& nameWord : nameWords) {
-            double wordSimilarity = calculateSimilarity(lowerSearchTerm, nameWord);
-            if (wordSimilarity > 0.6) {  // 60% similarity threshold
-                score += wordSimilarity * 40.0;
-            }
-        }
-        
-        // Only include items with a meaningful score
-        if (score > 10.0) {
+        // OPTIMIZATION 3: Early filtering - only keep items above threshold
+        if (score > MIN_SCORE_THRESHOLD) {
             scoredItems.push_back({item, score});
         }
     }
@@ -268,10 +271,15 @@ std::vector<Item> Database::searchItems(const std::string& searchTerm) const {
                   return a.second > b.second;
               });
     
-    // Extract items from scored pairs
+    // OPTIMIZATION 4: Limit results to top MAX_RESULTS for token efficiency
     std::vector<Item> result;
+    int count = 0;
     for (const auto& pair : scoredItems) {
         result.push_back(pair.first);
+        count++;
+        if (count >= MAX_RESULTS) {
+            break;
+        }
     }
     
     return result;

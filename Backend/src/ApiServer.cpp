@@ -5,16 +5,19 @@
 
 // Constructor
 ApiServer::ApiServer(const std::string& dbPath, int serverPort, bool useRealTime)
-    : database(std::make_unique<Database>(dbPath)), 
-      storeClient(std::make_shared<StoreApiClient>()),
-      llmInterface(std::make_unique<LLMInterface>(storeClient)),
+    : database(std::make_unique<Database>(dbPath)),
       port(serverPort),
-      useRealTimeApis(useRealTime) {}
+      useRealTimeApis(useRealTime) {
+    // Create shared pointer to database for StoreApiClient
+    auto dbPtr = std::shared_ptr<Database>(database.get(), [](Database*){});
+    storeClient = std::make_shared<StoreApiClient>(dbPtr);
+    llmInterface = std::make_unique<LLMInterface>(storeClient);
+}
 
 // Initialize the server
 bool ApiServer::initialize() {
     std::cout << "Initializing API Server on port " << port << "..." << std::endl;
-    std::cout << "Real-time APIs: " << (useRealTimeApis ? "ENABLED" : "DISABLED (using sample dataset)") << std::endl;
+    std::cout << "Data Source: Sample Dataset (real-time store APIs disabled)" << std::endl;
     
     if (!database->loadFromCSV()) {
         std::cerr << "Failed to load database!" << std::endl;
@@ -23,11 +26,8 @@ bool ApiServer::initialize() {
     
     std::cout << "API Server initialized successfully!" << std::endl;
     std::cout << "Loaded " << database->getItemCount() << " items from dataset." << std::endl;
-    
-    if (useRealTimeApis) {
-        std::cout << "Store API client ready for real-time queries." << std::endl;
-        std::cout << "LLM interface initialized for natural language processing." << std::endl;
-    }
+    std::cout << "Store search client ready (using database)." << std::endl;
+    std::cout << "LLM interface initialized for natural language processing." << std::endl;
     
     return true;
 }
@@ -196,24 +196,15 @@ std::string ApiServer::handleGetCategories() const {
     return createCategoriesResponse();
 }
 
-// Real-time API handlers
+// Store search handlers (using database)
 std::string ApiServer::handleSearchRealTime(const std::string& query) {
-    if (!useRealTimeApis) {
-        return createErrorResponse("Real-time APIs are not enabled. Using sample dataset instead.");
-    }
-    
-    std::cout << "[API] Real-time search: " << query << std::endl;
+    std::cout << "[API] Store search (database): " << query << std::endl;
     auto items = storeClient->searchAllStores(query);
     return createJsonResponse(items);
 }
 
 std::string ApiServer::handleComparePrices(const std::string& productName) {
-    if (!useRealTimeApis) {
-        // Fall back to database search
-        return handleSearchItems(productName);
-    }
-    
-    std::cout << "[API] Real-time price comparison: " << productName << std::endl;
+    std::cout << "[API] Price comparison (database): " << productName << std::endl;
     auto items = storeClient->comparePrices(productName);
     return createJsonResponse(items);
 }
@@ -475,8 +466,8 @@ void ApiServer::setUseRealTimeApis(bool use) {
 }
 
 void ApiServer::setStoreApiKey(const std::string& key) {
-    storeClient->setApiKey(key);
-    std::cout << "[Config] Store API key configured" << std::endl;
+    // Store API keys are no longer used (database-only mode)
+    std::cout << "[Config] Store API keys are not needed (using database only)" << std::endl;
 }
 
 // Getters

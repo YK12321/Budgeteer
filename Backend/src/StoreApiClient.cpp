@@ -1,126 +1,104 @@
 #include "StoreApiClient.h"
 #include <iostream>
-#include <sstream>
 #include <algorithm>
-#include <ctime>
 
-// Note: This is a simulation layer. In production, you would:
-// 1. Use actual store APIs (Walmart Open API, etc.)
-// 2. Implement proper HTTP client (libcurl, cpp-httplib)
-// 3. Handle authentication and rate limiting
-// 4. Parse real JSON responses
-
-StoreApiClient::StoreApiClient() {
-    // Initialize store endpoints
-    // These would be real API endpoints in production
-    storeEndpoints["Walmart"] = "https://api.walmart.com/v1/search";
-    storeEndpoints["Loblaws"] = "https://api.loblaws.ca/v1/products";
-    storeEndpoints["Costco"] = "https://api.costco.com/v1/items";
+// Constructor - accepts database reference
+StoreApiClient::StoreApiClient(std::shared_ptr<Database> db) 
+    : database(db) {
+    std::cout << "[StoreApiClient] Initialized with sample database (real-time APIs disabled)" << std::endl;
 }
 
-void StoreApiClient::setApiKey(const std::string& key) {
-    apiKey = key;
-}
-
-void StoreApiClient::addStoreEndpoint(const std::string& store, const std::string& endpoint) {
-    storeEndpoints[store] = endpoint;
-}
-
-std::string StoreApiClient::makeHttpRequest(const std::string& url, const std::string& method) {
-    // TODO: Implement actual HTTP request using libcurl or cpp-httplib
-    // For now, return empty string to indicate simulation mode
-    std::cout << "[StoreApiClient] Simulating " << method << " request to: " << url << std::endl;
-    return "";
-}
-
-std::vector<Item> StoreApiClient::parseWalmartResponse(const std::string& response) {
-    // TODO: Parse real Walmart API JSON response
-    std::vector<Item> items;
-    
-    // Simulation: In production, parse actual JSON
-    std::cout << "[StoreApiClient] Parsing Walmart response..." << std::endl;
-    
-    return items;
-}
-
-std::vector<Item> StoreApiClient::parseLoblawsResponse(const std::string& response) {
-    // TODO: Parse real Loblaws API JSON response
-    std::vector<Item> items;
-    
-    std::cout << "[StoreApiClient] Parsing Loblaws response..." << std::endl;
-    
-    return items;
-}
-
-std::vector<Item> StoreApiClient::parseCostcoResponse(const std::string& response) {
-    // TODO: Parse real Costco API JSON response
-    std::vector<Item> items;
-    
-    std::cout << "[StoreApiClient] Parsing Costco response..." << std::endl;
-    
-    return items;
-}
-
+// Search Walmart items from database
 std::vector<Item> StoreApiClient::searchWalmart(const std::string& query) {
-    std::cout << "[StoreApiClient] Searching Walmart for: " << query << std::endl;
-    
-    // Build API URL
-    std::string url = storeEndpoints["Walmart"] + "?query=" + query;
-    if (!apiKey.empty()) {
-        url += "&apiKey=" + apiKey;
+    if (!database) {
+        std::cerr << "[StoreApiClient] Error: Database not initialized" << std::endl;
+        return {};
     }
     
-    // Make request
-    std::string response = makeHttpRequest(url);
+    std::cout << "[StoreApiClient] Searching Walmart database for: " << query << std::endl;
     
-    // Parse response
-    return parseWalmartResponse(response);
+    // Get all Walmart items that match the search
+    auto allResults = database->searchItems(query);
+    std::vector<Item> walmartItems;
+    
+    for (const auto& item : allResults) {
+        if (item.getStore() == "Walmart") {
+            walmartItems.push_back(item);
+        }
+    }
+    
+    std::cout << "[StoreApiClient] Found " << walmartItems.size() << " Walmart items" << std::endl;
+    return walmartItems;
 }
 
+// Search Loblaws items from database
 std::vector<Item> StoreApiClient::searchLoblaws(const std::string& query) {
-    std::cout << "[StoreApiClient] Searching Loblaws for: " << query << std::endl;
-    
-    std::string url = storeEndpoints["Loblaws"] + "?q=" + query;
-    if (!apiKey.empty()) {
-        url += "&key=" + apiKey;
+    if (!database) {
+        std::cerr << "[StoreApiClient] Error: Database not initialized" << std::endl;
+        return {};
     }
     
-    std::string response = makeHttpRequest(url);
-    return parseLoblawsResponse(response);
+    std::cout << "[StoreApiClient] Searching Loblaws database for: " << query << std::endl;
+    
+    auto allResults = database->searchItems(query);
+    std::vector<Item> loblawsItems;
+    
+    for (const auto& item : allResults) {
+        if (item.getStore() == "Loblaws") {
+            loblawsItems.push_back(item);
+        }
+    }
+    
+    std::cout << "[StoreApiClient] Found " << loblawsItems.size() << " Loblaws items" << std::endl;
+    return loblawsItems;
 }
 
+// Search Costco items from database
 std::vector<Item> StoreApiClient::searchCostco(const std::string& query) {
-    std::cout << "[StoreApiClient] Searching Costco for: " << query << std::endl;
-    
-    std::string url = storeEndpoints["Costco"] + "?search=" + query;
-    if (!apiKey.empty()) {
-        url += "&auth=" + apiKey;
+    if (!database) {
+        std::cerr << "[StoreApiClient] Error: Database not initialized" << std::endl;
+        return {};
     }
     
-    std::string response = makeHttpRequest(url);
-    return parseCostcoResponse(response);
+    std::cout << "[StoreApiClient] Searching Costco database for: " << query << std::endl;
+    
+    auto allResults = database->searchItems(query);
+    std::vector<Item> costcoItems;
+    
+    for (const auto& item : allResults) {
+        if (item.getStore() == "Costco") {
+            costcoItems.push_back(item);
+        }
+    }
+    
+    std::cout << "[StoreApiClient] Found " << costcoItems.size() << " Costco items" << std::endl;
+    return costcoItems;
 }
 
+// Search all stores from database
 std::vector<Item> StoreApiClient::searchAllStores(const std::string& query) {
-    std::cout << "[StoreApiClient] Searching all stores for: " << query << std::endl;
+    if (!database) {
+        std::cerr << "[StoreApiClient] Error: Database not initialized" << std::endl;
+        return {};
+    }
     
-    std::vector<Item> allItems;
+    std::cout << "[StoreApiClient] Searching all stores in database for: " << query << std::endl;
     
-    // Search each store
-    auto walmartItems = searchWalmart(query);
-    auto loblawsItems = searchLoblaws(query);
-    auto costcoItems = searchCostco(query);
+    // Use database search which already searches across all stores
+    auto items = database->searchItems(query);
     
-    // Combine results
-    allItems.insert(allItems.end(), walmartItems.begin(), walmartItems.end());
-    allItems.insert(allItems.end(), loblawsItems.begin(), loblawsItems.end());
-    allItems.insert(allItems.end(), costcoItems.begin(), costcoItems.end());
-    
-    return allItems;
+    std::cout << "[StoreApiClient] Found " << items.size() << " total items across all stores" << std::endl;
+    return items;
 }
 
+// Compare prices across all stores from database
 std::vector<Item> StoreApiClient::comparePrices(const std::string& productName) {
-    std::cout << "[StoreApiClient] Comparing prices for: " << productName << std::endl;
+    if (!database) {
+        std::cerr << "[StoreApiClient] Error: Database not initialized" << std::endl;
+        return {};
+    }
+    
+    std::cout << "[StoreApiClient] Comparing prices in database for: " << productName << std::endl;
     
     // Search all stores
     auto items = searchAllStores(productName);
@@ -130,5 +108,6 @@ std::vector<Item> StoreApiClient::comparePrices(const std::string& productName) 
         return a.getCurrentPrice() < b.getCurrentPrice();
     });
     
+    std::cout << "[StoreApiClient] Sorted " << items.size() << " items by price" << std::endl;
     return items;
 }
