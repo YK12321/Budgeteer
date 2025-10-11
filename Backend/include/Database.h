@@ -17,8 +17,11 @@ private:
     std::string csvFilePath;
     
     // Helper methods
-    std::vector<std::string> splitString(const std::string& str, char delimiter);
+    std::vector<std::string> splitString(const std::string& str, char delimiter) const;
     std::vector<std::string> parseCategories(const std::string& categoriesStr);
+    int calculateLevenshteinDistance(const std::string& s1, const std::string& s2) const;
+    double calculateSimilarity(const std::string& s1, const std::string& s2) const;
+    bool containsWord(const std::string& text, const std::string& word) const;
     
 public:
     // Constructor

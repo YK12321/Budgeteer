@@ -9,7 +9,7 @@
 Database::Database(const std::string& filePath) : csvFilePath(filePath) {}
 
 // Helper function to split string by delimiter
-std::vector<std::string> Database::splitString(const std::string& str, char delimiter) {
+std::vector<std::string> Database::splitString(const std::string& str, char delimiter) const {
     std::vector<std::string> tokens;
     std::string token;
     std::istringstream tokenStream(str);
@@ -99,7 +99,7 @@ bool Database::loadFromCSV() {
 
 // Get total item count
 int Database::getItemCount() const {
-    return items.size();
+    return static_cast<int>(items.size());
 }
 
 // Query methods
@@ -158,44 +158,143 @@ std::vector<Item> Database::getItemsByPriceRange(double minPrice, double maxPric
     return result;
 }
 
+// Calculate Levenshtein distance for string similarity
+int Database::calculateLevenshteinDistance(const std::string& s1, const std::string& s2) const {
+    const size_t len1 = s1.size(), len2 = s2.size();
+    std::vector<std::vector<int>> d(len1 + 1, std::vector<int>(len2 + 1));
+
+    d[0][0] = 0;
+    for(size_t i = 1; i <= len1; ++i) d[i][0] = i;
+    for(size_t i = 1; i <= len2; ++i) d[0][i] = i;
+
+    for(size_t i = 1; i <= len1; ++i) {
+        for(size_t j = 1; j <= len2; ++j) {
+            d[i][j] = std::min({
+                d[i - 1][j] + 1,
+                d[i][j - 1] + 1,
+                d[i - 1][j - 1] + (s1[i - 1] == s2[j - 1] ? 0 : 1)
+            });
+        }
+    }
+    return d[len1][len2];
+}
+
+// Calculate similarity score (0.0 to 1.0, higher is more similar)
+double Database::calculateSimilarity(const std::string& s1, const std::string& s2) const {
+    if (s1.empty() || s2.empty()) return 0.0;
+    
+    int distance = calculateLevenshteinDistance(s1, s2);
+    size_t maxLen = std::max(s1.length(), s2.length());
+    
+    return 1.0 - (static_cast<double>(distance) / static_cast<double>(maxLen));
+}
+
+// Check if text contains word (case-insensitive)
+bool Database::containsWord(const std::string& text, const std::string& word) const {
+    std::string lowerText = text;
+    std::string lowerWord = word;
+    std::transform(lowerText.begin(), lowerText.end(), lowerText.begin(), ::tolower);
+    std::transform(lowerWord.begin(), lowerWord.end(), lowerWord.begin(), ::tolower);
+    
+    // Check for whole word match or partial match
+    return lowerText.find(lowerWord) != std::string::npos;
+}
+
 std::vector<Item> Database::searchItems(const std::string& searchTerm) const {
-    std::vector<Item> result;
+    if (searchTerm.empty()) return {};
+    
+    std::vector<std::pair<Item, double>> scoredItems;
     std::string lowerSearchTerm = searchTerm;
     std::transform(lowerSearchTerm.begin(), lowerSearchTerm.end(), 
                    lowerSearchTerm.begin(), ::tolower);
     
+    // Split search term into words
+    std::vector<std::string> searchWords = splitString(searchTerm, ' ');
+    
     for (const auto& item : items) {
-        std::string lowerName = item.getItemName();
-        std::string lowerDesc = item.getItemDescription();
+        double score = 0.0;
+        std::string itemName = item.getItemName();
+        std::string itemDesc = item.getItemDescription();
+        std::string lowerName = itemName;
+        std::string lowerDesc = itemDesc;
+        
         std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
         std::transform(lowerDesc.begin(), lowerDesc.end(), lowerDesc.begin(), ::tolower);
         
-        if (lowerName.find(lowerSearchTerm) != std::string::npos ||
-            lowerDesc.find(lowerSearchTerm) != std::string::npos) {
-            result.push_back(item);
+        // Exact match in name (highest priority)
+        if (lowerName.find(lowerSearchTerm) != std::string::npos) {
+            score += 100.0;
+        }
+        
+        // Exact match in description
+        if (lowerDesc.find(lowerSearchTerm) != std::string::npos) {
+            score += 50.0;
+        }
+        
+        // Calculate similarity score for the full name
+        double nameSimilarity = calculateSimilarity(lowerSearchTerm, lowerName);
+        score += nameSimilarity * 75.0;
+        
+        // Check individual words for partial matches
+        for (const auto& word : searchWords) {
+            if (word.length() >= 3) {  // Only check words with 3+ characters
+                if (containsWord(itemName, word)) {
+                    score += 30.0;
+                }
+                if (containsWord(itemDesc, word)) {
+                    score += 15.0;
+                }
+            }
+        }
+        
+        // Calculate similarity for individual words in the item name
+        std::vector<std::string> nameWords = splitString(itemName, ' ');
+        for (const auto& nameWord : nameWords) {
+            double wordSimilarity = calculateSimilarity(lowerSearchTerm, nameWord);
+            if (wordSimilarity > 0.6) {  // 60% similarity threshold
+                score += wordSimilarity * 40.0;
+            }
+        }
+        
+        // Only include items with a meaningful score
+        if (score > 10.0) {
+            scoredItems.push_back({item, score});
         }
     }
+    
+    // Sort by score (highest first)
+    std::sort(scoredItems.begin(), scoredItems.end(),
+              [](const auto& a, const auto& b) {
+                  return a.second > b.second;
+              });
+    
+    // Extract items from scored pairs
+    std::vector<Item> result;
+    for (const auto& pair : scoredItems) {
+        result.push_back(pair.first);
+    }
+    
     return result;
 }
 
 // Statistics methods
 double Database::getAveragePrice(int itemId) const {
-    auto items = getItemById(itemId);
-    if (items.empty()) return 0.0;
+    auto itemList = getItemById(itemId);
+    if (itemList.empty()) return 0.0;
     
     double sum = 0.0;
-    for (const auto& item : items) {
+    for (const auto& item : itemList) {
         sum += item.getCurrentPrice();
     }
-    return sum / items.size();
+    return sum / itemList.size();
 }
 
 double Database::getMinPrice(int itemId) const {
-    auto items = getItemById(itemId);
-    if (items.empty()) return 0.0;
+    auto itemList = getItemById(itemId);
+    if (itemList.empty()) return 0.0;
     
-    double minPrice = items[0].getCurrentPrice();
-    for (const auto& item : items) {
+    double minPrice = itemList[0].getCurrentPrice();
+    for (const auto& item : itemList) {
         if (item.getCurrentPrice() < minPrice) {
             minPrice = item.getCurrentPrice();
         }
@@ -204,11 +303,11 @@ double Database::getMinPrice(int itemId) const {
 }
 
 double Database::getMaxPrice(int itemId) const {
-    auto items = getItemById(itemId);
-    if (items.empty()) return 0.0;
+    auto itemList = getItemById(itemId);
+    if (itemList.empty()) return 0.0;
     
-    double maxPrice = items[0].getCurrentPrice();
-    for (const auto& item : items) {
+    double maxPrice = itemList[0].getCurrentPrice();
+    for (const auto& item : itemList) {
         if (item.getCurrentPrice() > maxPrice) {
             maxPrice = item.getCurrentPrice();
         }
