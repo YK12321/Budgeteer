@@ -251,19 +251,33 @@ std::vector<Item> LLMInterface::cherryPickRelevantItems(const std::string& query
             return fallback;
         }
         
-        // Convert to set for fast lookup
-        std::set<std::string> selectedSet;
+        // Convert to list for partial matching
+        std::vector<std::string> selectedList;
         for (const auto& name : selectedNames) {
             if (name.is_string()) {
-                selectedSet.insert(name.get<std::string>());
+                selectedList.push_back(name.get<std::string>());
             }
         }
         
-        // Filter items based on selected names
+        // Filter items based on selected names (use partial matching)
         std::vector<Item> filteredItems;
         for (const auto& item : items) {
-            if (selectedSet.count(item.getItemName()) > 0) {
-                filteredItems.push_back(item);
+            std::string itemName = item.getItemName();
+            std::string lowerItemName = itemName;
+            std::transform(lowerItemName.begin(), lowerItemName.end(), lowerItemName.begin(), ::tolower);
+            
+            // Check if any selected name is contained in this item's name
+            for (const auto& selectedName : selectedList) {
+                std::string lowerSelectedName = selectedName;
+                std::transform(lowerSelectedName.begin(), lowerSelectedName.end(), lowerSelectedName.begin(), ::tolower);
+                
+                // Check if the selected name is a substring of the item name
+                // or if the item name starts with the selected name
+                if (lowerItemName.find(lowerSelectedName) != std::string::npos ||
+                    lowerSelectedName.find(lowerItemName) != std::string::npos) {
+                    filteredItems.push_back(item);
+                    break;  // Found a match, no need to check other selected names
+                }
             }
         }
         
@@ -526,7 +540,136 @@ std::vector<Item> LLMInterface::refineShoppingListWithReasoning(const std::strin
     
     std::cout << "[LLM] Refinement complete. Final list has " << currentItemNames.size() << " unique items" << std::endl;
     
+    // Perform final validation to catch any items that shouldn't be on the list
+    finalItems = validateFinalList(query, finalItems);
+    
     return finalItems;
+}
+
+std::vector<Item> LLMInterface::validateFinalList(const std::string& query, const std::vector<Item>& items) {
+    std::cout << "[LLM] Performing final validation check on the list..." << std::endl;
+    
+    if (items.empty()) {
+        std::cout << "[LLM] List is empty, skipping validation" << std::endl;
+        return items;
+    }
+    
+    if (!canMakeGPTRequest()) {
+        std::cout << "[LLM] Query limit reached, skipping final validation" << std::endl;
+        return items;
+    }
+    
+    try {
+        // Extract unique item names
+        std::vector<std::string> itemNames;
+        std::set<std::string> seenNames;
+        for (const auto& item : items) {
+            if (seenNames.insert(item.getItemName()).second) {
+                itemNames.push_back(item.getItemName());
+            }
+        }
+        
+        // Build validation prompt
+        std::ostringstream validationPrompt;
+        validationPrompt << "User's original request: \"" << query << "\"\n\n";
+        validationPrompt << "Final shopping list to validate:\n";
+        for (size_t i = 0; i < itemNames.size(); i++) {
+            validationPrompt << (i + 1) << ". " << itemNames[i] << "\n";
+        }
+        validationPrompt << "\n";
+        validationPrompt << "Task: Perform a final validation check. Are there ANY items on this list that are OBVIOUSLY wrong or completely unrelated to the user's request?\n\n";
+        validationPrompt << "Rules:\n";
+        validationPrompt << "1. ONLY remove items that are CLEARLY wrong (e.g., 'MacBook' when user wants party snacks, 'Diapers' when user wants cake ingredients)\n";
+        validationPrompt << "2. Keep items that are even remotely reasonable or could be interpreted as related\n";
+        validationPrompt << "3. When in doubt, KEEP the item - be lenient, not strict\n";
+        validationPrompt << "4. Only flag obvious mistakes like completely wrong categories (electronics for food, etc.)\n\n";
+        validationPrompt << "IMPORTANT: Return ONLY a raw JSON object. Do NOT wrap it in markdown code blocks.\n";
+        validationPrompt << "Format:\n";
+        validationPrompt << "{\n";
+        validationPrompt << "  \"items_to_remove\": [\"Item Name 1\", \"Item Name 2\", ...],\n";
+        validationPrompt << "  \"reason\": \"brief explanation of why these items were removed\"\n";
+        validationPrompt << "}\n\n";
+        validationPrompt << "If all items are valid, return: {\"items_to_remove\": [], \"reason\": \"All items are valid\"}\n";
+        validationPrompt << "Your response must start with { and end with }.";
+        
+        std::cout << "[LLM] Asking GPT to validate final list..." << std::endl;
+        std::string gptResponse = callGPTAPI(validationPrompt.str());
+        
+        if (gptResponse.empty()) {
+            std::cout << "[LLM] Validation failed, returning original list" << std::endl;
+            return items;
+        }
+        
+        // Clean response
+        std::string cleanedResponse = gptResponse;
+        
+        // Remove markdown code blocks
+        size_t startPos = cleanedResponse.find("```json");
+        if (startPos != std::string::npos) {
+            cleanedResponse = cleanedResponse.substr(startPos + 7);
+        } else {
+            startPos = cleanedResponse.find("```");
+            if (startPos != std::string::npos) {
+                cleanedResponse = cleanedResponse.substr(startPos + 3);
+            }
+        }
+        
+        size_t endPos = cleanedResponse.rfind("```");
+        if (endPos != std::string::npos) {
+            cleanedResponse = cleanedResponse.substr(0, endPos);
+        }
+        
+        // Trim whitespace
+        size_t first = cleanedResponse.find_first_not_of(" \n\r\t");
+        if (first == std::string::npos) {
+            cleanedResponse = "";
+        } else {
+            size_t last = cleanedResponse.find_last_not_of(" \n\r\t");
+            cleanedResponse = cleanedResponse.substr(first, last - first + 1);
+        }
+        
+        std::cout << "[LLM] Validation response: " << cleanedResponse.substr(0, 150) << "..." << std::endl;
+        
+        // Parse JSON response
+        json parsed = json::parse(cleanedResponse);
+        
+        std::vector<std::string> itemsToRemove;
+        if (parsed.contains("items_to_remove") && parsed["items_to_remove"].is_array()) {
+            for (const auto& item : parsed["items_to_remove"]) {
+                if (item.is_string()) {
+                    itemsToRemove.push_back(item.get<std::string>());
+                }
+            }
+        }
+        
+        std::string reason = parsed.value("reason", "No reason provided");
+        std::cout << "[LLM] Validation reason: " << reason << std::endl;
+        
+        if (itemsToRemove.empty()) {
+            std::cout << "[LLM] All items passed validation!" << std::endl;
+            return items;
+        }
+        
+        // Remove invalid items
+        std::cout << "[LLM] Removing " << itemsToRemove.size() << " invalid items..." << std::endl;
+        std::set<std::string> removeSet(itemsToRemove.begin(), itemsToRemove.end());
+        
+        std::vector<Item> validatedItems;
+        for (const auto& item : items) {
+            if (removeSet.find(item.getItemName()) == removeSet.end()) {
+                validatedItems.push_back(item);
+            } else {
+                std::cout << "[LLM]   - Removed: " << item.getItemName() << std::endl;
+            }
+        }
+        
+        std::cout << "[LLM] Final validation complete. " << validatedItems.size() << " items remaining." << std::endl;
+        return validatedItems;
+        
+    } catch (const std::exception& e) {
+        std::cerr << "[LLM] Error in final validation: " << e.what() << std::endl;
+        return items;  // Return original list on error
+    }
 }
 
 std::string LLMInterface::buildPrompt(const std::string& query, const std::string& context) {
@@ -539,13 +682,19 @@ std::string LLMInterface::buildPrompt(const std::string& query, const std::strin
     
     prompt << "Please analyze this query and provide:\n\n";
     prompt << "1. Intent (search/compare/shopping_list/budget)\n";
-    prompt << "2. Product names or categories mentioned\n";
+    prompt << "2. SPECIFIC product names (not search phrases)\n";
     prompt << "3. Any budget constraints\n";
-    prompt << "4. Store preferences if mentioned\n";
-    prompt << "5. Suggested search terms for our database\n\n";
+    prompt << "4. Store preferences if mentioned\n\n";
+    prompt << "CRITICAL for search_terms:\n";
+    prompt << "- Return SPECIFIC PRODUCT NAMES, not generic search phrases\n";
+    prompt << "- Example: For 'fruits', return ['apples', 'bananas', 'oranges', 'grapes', 'strawberries']\n";
+    prompt << "- Example: For 'snacks', return ['chips', 'cookies', 'pretzels', 'crackers', 'popcorn']\n";
+    prompt << "- Example: For 'cake ingredients', return ['flour', 'sugar', 'eggs', 'butter', 'baking powder', 'vanilla extract']\n";
+    prompt << "- DO NOT return phrases like 'fresh fruits', 'buy snacks', 'snack ideas'\n";
+    prompt << "- Return 5-10 common specific items that match the category\n\n";
     prompt << "IMPORTANT: Return ONLY a raw JSON object. Do NOT wrap it in markdown code blocks or use ```json. ";
     prompt << "Your response must start with { and end with }.\n\n";
-    prompt << "Format: {\"intent\": \"...\", \"products\": [...], \"budget\": null or number, \"stores\": [...], \"search_terms\": [...]}";
+    prompt << "Format: {\"intent\": \"...\", \"products\": [...], \"budget\": null or number, \"stores\": [...], \"search_terms\": [list of specific product names]}";
     
     return prompt.str();
 }
@@ -924,15 +1073,189 @@ std::string LLMInterface::processNaturalLanguageQuery(const std::string& query, 
 std::vector<Item> LLMInterface::generateShoppingList(const std::string& request) {
     std::cout << "[LLM] Generating shopping list for: " << request << std::endl;
     
-    // Process the request and return items
-    // This would integrate with the natural language processing
+    // Use the natural language query processing to generate items
+    if (useGPT && !openaiApiKey.empty()) {
+        std::cout << "[LLM] Using GPT-4o-mini to generate shopping list..." << std::endl;
+        
+        try {
+            // Build a prompt specifically for shopping list generation
+            std::ostringstream prompt;
+            prompt << "User's shopping request: \"" << request << "\"\n\n";
+            prompt << "Generate a shopping list based on this request. Consider:\n";
+            prompt << "1. What items are needed based on the request\n";
+            prompt << "2. Budget constraints mentioned (if any)\n";
+            prompt << "3. Common grocery items for the scenario\n";
+            prompt << "4. Variety and practicality\n\n";
+            prompt << "Available stores: Walmart, Loblaws, Costco\n\n";
+            prompt << "IMPORTANT: Return ONLY a raw JSON object. Do NOT wrap it in markdown code blocks.\n";
+            prompt << "Format:\n";
+            prompt << "{\n";
+            prompt << "  \"items\": [\"item1\", \"item2\", \"item3\", ...],\n";
+            prompt << "  \"reasoning\": \"brief explanation of your selection\"\n";
+            prompt << "}\n\n";
+            prompt << "Your response must start with { and end with }.";
+            
+            std::string gptResponse = callGPTAPI(prompt.str());
+            
+            if (gptResponse.empty()) {
+                std::cout << "[LLM] GPT call failed, falling back to local processing" << std::endl;
+                return generateShoppingListLocally(request);
+            }
+            
+            // Clean response
+            std::string cleanedResponse = gptResponse;
+            
+            // Remove markdown code blocks
+            size_t startPos = cleanedResponse.find("```json");
+            if (startPos != std::string::npos) {
+                cleanedResponse = cleanedResponse.substr(startPos + 7);
+            } else {
+                startPos = cleanedResponse.find("```");
+                if (startPos != std::string::npos) {
+                    cleanedResponse = cleanedResponse.substr(startPos + 3);
+                }
+            }
+            
+            size_t endPos = cleanedResponse.rfind("```");
+            if (endPos != std::string::npos) {
+                cleanedResponse = cleanedResponse.substr(0, endPos);
+            }
+            
+            // Trim whitespace
+            size_t first = cleanedResponse.find_first_not_of(" \n\r\t");
+            if (first == std::string::npos) {
+                cleanedResponse = "";
+            } else {
+                size_t last = cleanedResponse.find_last_not_of(" \n\r\t");
+                cleanedResponse = cleanedResponse.substr(first, last - first + 1);
+            }
+            
+            std::cout << "[LLM] Shopping list response: " << cleanedResponse.substr(0, 150) << "..." << std::endl;
+            
+            // Parse JSON response
+            json parsed = json::parse(cleanedResponse);
+            
+            if (!parsed.contains("items") || !parsed["items"].is_array()) {
+                std::cerr << "[LLM] Invalid response format, falling back" << std::endl;
+                return generateShoppingListLocally(request);
+            }
+            
+            // Extract item names from GPT response
+            std::vector<std::string> itemNames;
+            for (const auto& item : parsed["items"]) {
+                if (item.is_string()) {
+                    itemNames.push_back(item.get<std::string>());
+                }
+            }
+            
+            std::cout << "[LLM] GPT suggested " << itemNames.size() << " items" << std::endl;
+            
+            // Search for each item in the database
+            std::vector<Item> shoppingList;
+            for (const auto& itemName : itemNames) {
+                auto searchResults = storeClient->searchAllStores(itemName);
+                
+                if (!searchResults.empty()) {
+                    // Find the cheapest option for this item
+                    auto cheapest = std::min_element(searchResults.begin(), searchResults.end(),
+                        [](const Item& a, const Item& b) {
+                            return a.getCurrentPrice() < b.getCurrentPrice();
+                        });
+                    
+                    if (cheapest != searchResults.end()) {
+                        shoppingList.push_back(*cheapest);
+                        std::cout << "[LLM]   + Added: " << cheapest->getItemName() 
+                                 << " ($" << cheapest->getCurrentPrice() << " at " 
+                                 << cheapest->getStore() << ")" << std::endl;
+                    }
+                } else {
+                    std::cout << "[LLM]   - Not found: " << itemName << std::endl;
+                }
+            }
+            
+            if (shoppingList.empty()) {
+                std::cout << "[LLM] No items found in database, trying fallback" << std::endl;
+                return generateShoppingListLocally(request);
+            }
+            
+            std::cout << "[LLM] Generated shopping list with " << shoppingList.size() << " items" << std::endl;
+            
+            // Perform final validation to ensure no inappropriate items made it through
+            shoppingList = validateFinalList(request, shoppingList);
+            
+            return shoppingList;
+            
+        } catch (const std::exception& e) {
+            std::cerr << "[LLM] Error generating shopping list: " << e.what() << std::endl;
+            return generateShoppingListLocally(request);
+        }
+    } else {
+        std::cout << "[LLM] GPT disabled or no API key, using local processing" << std::endl;
+        return generateShoppingListLocally(request);
+    }
+}
+
+std::vector<Item> LLMInterface::generateShoppingListLocally(const std::string& request) {
+    std::cout << "[LLM] Generating shopping list locally..." << std::endl;
+    
+    // Extract keywords from request
+    std::string lowerRequest = request;
+    std::transform(lowerRequest.begin(), lowerRequest.end(), lowerRequest.begin(), ::tolower);
+    
     std::vector<Item> shoppingList;
     
-    // TODO: Implement smart shopping list generation based on:
-    // - User preferences
-    // - Budget constraints
-    // - Historical purchases
-    // - Seasonal deals
+    // Simple keyword-based matching
+    std::map<std::string, std::vector<std::string>> scenarios = {
+        {"snack", {"chips", "cookies", "soda", "candy"}},
+        {"party", {"chips", "soda", "cookies", "pizza"}},
+        {"breakfast", {"eggs", "milk", "bread", "butter", "cereal"}},
+        {"lunch", {"bread", "cheese", "meat", "lettuce"}},
+        {"dinner", {"chicken", "rice", "pasta", "sauce"}},
+        {"cake", {"flour", "sugar", "eggs", "butter", "milk"}},
+        {"pasta", {"pasta", "sauce", "cheese", "garlic"}},
+        {"groceries", {"milk", "bread", "eggs", "butter"}}
+    };
+    
+    // Find matching scenario
+    std::vector<std::string> searchTerms;
+    for (const auto& [keyword, items] : scenarios) {
+        if (lowerRequest.find(keyword) != std::string::npos) {
+            searchTerms = items;
+            std::cout << "[LLM] Matched scenario: " << keyword << std::endl;
+            break;
+        }
+    }
+    
+    // If no scenario matched, try to extract products from the request
+    if (searchTerms.empty()) {
+        // Just use the request as-is
+        searchTerms.push_back(request);
+    }
+    
+    // Search for each term
+    for (const auto& term : searchTerms) {
+        auto results = storeClient->searchAllStores(term);
+        
+        if (!results.empty()) {
+            // Find cheapest option
+            auto cheapest = std::min_element(results.begin(), results.end(),
+                [](const Item& a, const Item& b) {
+                    return a.getCurrentPrice() < b.getCurrentPrice();
+                });
+            
+            if (cheapest != results.end()) {
+                shoppingList.push_back(*cheapest);
+                std::cout << "[LLM]   + Added: " << cheapest->getItemName() << std::endl;
+            }
+        }
+    }
+    
+    std::cout << "[LLM] Local generation found " << shoppingList.size() << " items" << std::endl;
+    
+    // Perform final validation if GPT is available
+    if (useGPT && !openaiApiKey.empty()) {
+        shoppingList = validateFinalList(request, shoppingList);
+    }
     
     return shoppingList;
 }

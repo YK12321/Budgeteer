@@ -2,6 +2,8 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
+#include <httplib.h>
+#include <nlohmann/json.hpp>
 
 // Constructor
 ApiServer::ApiServer(const std::string& dbPath, int serverPort, bool useRealTime)
@@ -209,17 +211,46 @@ std::string ApiServer::handleComparePrices(const std::string& productName) {
     return createJsonResponse(items);
 }
 
+// Helper function to escape special characters for JSON strings
+std::string escapeJsonString(const std::string& input) {
+    std::ostringstream escaped;
+    for (char c : input) {
+        switch (c) {
+            case '"':  escaped << "\\\""; break;
+            case '\\': escaped << "\\\\"; break;
+            case '\b': escaped << "\\b"; break;
+            case '\f': escaped << "\\f"; break;
+            case '\n': escaped << "\\n"; break;
+            case '\r': escaped << "\\r"; break;
+            case '\t': escaped << "\\t"; break;
+            default:
+                if (c < 0x20) {
+                    // Control characters - use unicode escape
+                    escaped << "\\u" << std::hex << std::setw(4) << std::setfill('0') << static_cast<int>(c);
+                } else {
+                    escaped << c;
+                }
+                break;
+        }
+    }
+    return escaped.str();
+}
+
 // LLM Interface handlers
 std::string ApiServer::handleNaturalLanguageQuery(const std::string& query) {
     std::cout << "[API] Natural language query: " << query << std::endl;
     
     std::string response = llmInterface->processNaturalLanguageQuery(query);
     
+    // Escape both query and response for safe JSON embedding
+    std::string escapedQuery = escapeJsonString(query);
+    std::string escapedResponse = escapeJsonString(response);
+    
     std::ostringstream json;
     json << "{\n";
     json << "  \"success\": true,\n";
-    json << "  \"query\": \"" << query << "\",\n";
-    json << "  \"response\": \"" << response << "\"\n";
+    json << "  \"query\": \"" << escapedQuery << "\",\n";
+    json << "  \"response\": \"" << escapedResponse << "\"\n";
     json << "}";
     return json.str();
 }
@@ -447,16 +478,192 @@ void ApiServer::startHttpServer() {
     std::cout << "\n========================================\n";
     std::cout << "  Starting HTTP Server on port " << port << "\n";
     std::cout << "========================================\n";
-    std::cout << "\nNOTE: HTTP server requires cpp-httplib library.\n";
-    std::cout << "To enable HTTP mode:\n";
-    std::cout << "1. Install cpp-httplib: https://github.com/yhirose/cpp-httplib\n";
-    std::cout << "2. Update CMakeLists.txt to link the library\n";
-    std::cout << "3. Implement HTTP endpoints in this method\n\n";
-    std::cout << "For now, using CLI mode instead.\n";
-    std::cout << "========================================\n\n";
     
-    // Fall back to CLI mode
+    #ifdef CPPHTTPLIB_HTTPLIB_H
+    // cpp-httplib is available
+    httplib::Server svr;
+    
+    // Enable CORS for frontend
+    svr.set_default_headers({
+        {"Access-Control-Allow-Origin", "*"},
+        {"Access-Control-Allow-Methods", "GET, POST, OPTIONS"},
+        {"Access-Control-Allow-Headers", "Content-Type"}
+    });
+    
+    // Handle OPTIONS preflight requests
+    // Note: CORS headers are already set by set_default_headers, so we just return 200
+    svr.Options("/(.*)", [](const httplib::Request&, httplib::Response& res) {
+        res.status = 200;
+    });
+    
+    // Root endpoint
+    svr.Get("/", [](const httplib::Request&, httplib::Response& res) {
+        res.set_content("{\"message\":\"Budgeteer API Server\",\"version\":\"1.0\",\"status\":\"running\"}", "application/json");
+    });
+    
+    // GET /items - Get all items
+    svr.Get("/items", [this](const httplib::Request&, httplib::Response& res) {
+        std::cout << "[HTTP] GET /items" << std::endl;
+        std::string response = handleGetAllItems();
+        res.set_content(response, "application/json");
+    });
+    
+    // GET /items/:id - Get item by ID
+    svr.Get("/items/(\\d+)", [this](const httplib::Request& req, httplib::Response& res) {
+        int itemId = std::stoi(req.matches[1]);
+        std::cout << "[HTTP] GET /items/" << itemId << std::endl;
+        std::string response = handleGetItemById(itemId);
+        res.set_content(response, "application/json");
+    });
+    
+    // GET /search - Search items
+    svr.Get("/search", [this](const httplib::Request& req, httplib::Response& res) {
+        if (req.has_param("q")) {
+            std::string query = req.get_param_value("q");
+            std::cout << "[HTTP] GET /search?q=" << query << std::endl;
+            std::string response = handleSearchItems(query);
+            res.set_content(response, "application/json");
+        } else if (req.has_param("name")) {
+            std::string name = req.get_param_value("name");
+            std::cout << "[HTTP] GET /search?name=" << name << std::endl;
+            std::string response = handleGetItemsByName(name);
+            res.set_content(response, "application/json");
+        } else if (req.has_param("store")) {
+            std::string store = req.get_param_value("store");
+            std::cout << "[HTTP] GET /search?store=" << store << std::endl;
+            std::string response = handleGetItemsByStore(store);
+            res.set_content(response, "application/json");
+        } else if (req.has_param("category")) {
+            std::string category = req.get_param_value("category");
+            std::cout << "[HTTP] GET /search?category=" << category << std::endl;
+            std::string response = handleGetItemsByCategory(category);
+            res.set_content(response, "application/json");
+        } else if (req.has_param("min") && req.has_param("max")) {
+            double minPrice = std::stod(req.get_param_value("min"));
+            double maxPrice = std::stod(req.get_param_value("max"));
+            std::cout << "[HTTP] GET /search?min=" << minPrice << "&max=" << maxPrice << std::endl;
+            std::string response = handleGetItemsByPriceRange(minPrice, maxPrice);
+            res.set_content(response, "application/json");
+        } else {
+            res.set_content(createErrorResponse("Missing query parameter"), "application/json");
+        }
+    });
+    
+    // GET /stores - Get all stores
+    svr.Get("/stores", [this](const httplib::Request&, httplib::Response& res) {
+        std::cout << "[HTTP] GET /stores" << std::endl;
+        std::string response = handleGetStores();
+        res.set_content(response, "application/json");
+    });
+    
+    // GET /categories - Get all categories
+    svr.Get("/categories", [this](const httplib::Request&, httplib::Response& res) {
+        std::cout << "[HTTP] GET /categories" << std::endl;
+        std::string response = handleGetCategories();
+        res.set_content(response, "application/json");
+    });
+    
+    // GET /items/:id/stats - Get item statistics
+    svr.Get("/items/(\\d+)/stats", [this](const httplib::Request& req, httplib::Response& res) {
+        int itemId = std::stoi(req.matches[1]);
+        std::cout << "[HTTP] GET /items/" << itemId << "/stats" << std::endl;
+        std::string response = handleGetStats(itemId);
+        res.set_content(response, "application/json");
+    });
+    
+    // POST /api/llm/query - Natural language query
+    svr.Post("/api/llm/query", [this](const httplib::Request& req, httplib::Response& res) {
+        std::cout << "[HTTP] POST /api/llm/query" << std::endl;
+        try {
+            auto json = nlohmann::json::parse(req.body);
+            std::string query = json["query"];
+            std::string response = handleNaturalLanguageQuery(query);
+            res.set_content(response, "application/json");
+        } catch (const std::exception& e) {
+            res.set_content(createErrorResponse("Invalid JSON body"), "application/json");
+        }
+    });
+    
+    // POST /api/llm/shopping-list - Generate shopping list
+    svr.Post("/api/llm/shopping-list", [this](const httplib::Request& req, httplib::Response& res) {
+        std::cout << "[HTTP] POST /api/llm/shopping-list" << std::endl;
+        try {
+            auto json = nlohmann::json::parse(req.body);
+            std::string prompt = json["prompt"];
+            std::string response = handleGenerateShoppingList(prompt);
+            res.set_content(response, "application/json");
+        } catch (const std::exception& e) {
+            res.set_content(createErrorResponse("Invalid JSON body"), "application/json");
+        }
+    });
+    
+    // POST /api/llm/budget-insight - Get budget insight
+    svr.Post("/api/llm/budget-insight", [this](const httplib::Request& req, httplib::Response& res) {
+        std::cout << "[HTTP] POST /api/llm/budget-insight" << std::endl;
+        try {
+            auto json = nlohmann::json::parse(req.body);
+            std::vector<Item> items;
+            for (const auto& itemJson : json["items"]) {
+                // Parse items from request (simplified)
+                auto dbItems = database->getItemById(itemJson["item_id"]);
+                items.insert(items.end(), dbItems.begin(), dbItems.end());
+            }
+            std::string response = handleBudgetInsight(items);
+            res.set_content(response, "application/json");
+        } catch (const std::exception& e) {
+            res.set_content(createErrorResponse("Invalid JSON body"), "application/json");
+        }
+    });
+    
+    // GET /api/realtime/search - Real-time search (database fallback)
+    svr.Get("/api/realtime/search", [this](const httplib::Request& req, httplib::Response& res) {
+        if (req.has_param("q")) {
+            std::string query = req.get_param_value("q");
+            std::cout << "[HTTP] GET /api/realtime/search?q=" << query << std::endl;
+            std::string response = handleSearchRealTime(query);
+            res.set_content(response, "application/json");
+        } else {
+            res.set_content(createErrorResponse("Missing query parameter 'q'"), "application/json");
+        }
+    });
+    
+    // GET /api/realtime/compare - Compare prices (database)
+    svr.Get("/api/realtime/compare", [this](const httplib::Request& req, httplib::Response& res) {
+        if (req.has_param("product")) {
+            std::string product = req.get_param_value("product");
+            std::cout << "[HTTP] GET /api/realtime/compare?product=" << product << std::endl;
+            std::string response = handleComparePrices(product);
+            res.set_content(response, "application/json");
+        } else {
+            res.set_content(createErrorResponse("Missing query parameter 'product'"), "application/json");
+        }
+    });
+    
+    std::cout << "\n✓ HTTP Server configured with endpoints" << std::endl;
+    std::cout << "✓ CORS enabled for frontend access" << std::endl;
+    std::cout << "✓ Ready to accept requests at http://localhost:" << port << std::endl;
+    std::cout << "\nAvailable endpoints:" << std::endl;
+    std::cout << "  GET  /items" << std::endl;
+    std::cout << "  GET  /items/:id" << std::endl;
+    std::cout << "  GET  /search?q=..." << std::endl;
+    std::cout << "  GET  /stores" << std::endl;
+    std::cout << "  GET  /categories" << std::endl;
+    std::cout << "  POST /api/llm/query" << std::endl;
+    std::cout << "  POST /api/llm/shopping-list" << std::endl;
+    std::cout << "\nPress Ctrl+C to stop the server\n" << std::endl;
+    
+    // Start server
+    if (!svr.listen("0.0.0.0", port)) {
+        std::cerr << "Failed to start HTTP server on port " << port << std::endl;
+        std::cerr << "Port may already be in use." << std::endl;
+    }
+    
+    #else
+    std::cout << "\nERROR: cpp-httplib not found!\n";
+    std::cout << "HTTP server requires cpp-httplib library.\n";
+    std::cout << "Falling back to CLI mode.\n\n";
     run();
+    #endif
 }
 
 // Configuration

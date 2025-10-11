@@ -56,6 +56,7 @@ private:
     
     ReasoningResult reasonAboutShoppingList(const std::string& originalQuery, const std::vector<std::string>& currentItems);
     std::vector<Item> refineShoppingListWithReasoning(const std::string& query, std::vector<Item> initialItems, int maxIterations = 3);
+    std::vector<Item> validateFinalList(const std::string& query, const std::vector<Item>& items);
     
     // Local fallback methods
     std::string detectIntentLocal(const std::string& query);
@@ -96,6 +97,7 @@ public:
     // Main interface methods
     std::string processNaturalLanguageQuery(const std::string& query, Mode mode = Mode::CHEAPEST_MIX);
     std::vector<Item> generateShoppingList(const std::string& request);
+    std::vector<Item> generateShoppingListLocally(const std::string& request);
     std::string getBudgetInsight(const std::vector<Item>& items);
     
     // Response formatting
