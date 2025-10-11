@@ -15,15 +15,15 @@
 
 ## What It Does
 
-Budgeteer helps consumers combat inflation by finding the lowest prices across multiple grocery stores. Our solution addresses the problem of rising food costs by empowering users to make informed purchasing decisions.
+Our solution to the problem of inflation is to create an app that takes in an item the user wants to buy and finds the lowest-cost shop to buy it. The user can also enter a list of shopping items manually or by our AI, and the app will find the store that will give the cheapest cost to buy all the items.
 
 ### Core Features
 
-1. **Single Item Search**: Enter any grocery item to instantly compare prices across Walmart, Loblaws, and Costco, with historical price data to track trends
+1. **Single Item Search**: Enter any grocery item to instantly compare prices across Walmart, Loblaws, and Costco, with historical price data and filtering options
 2. **AI Shopping List Generator**: Use natural language prompts (e.g., "I need snacks for a party under $50") to automatically generate optimized shopping lists
 3. **Manual Shopping List Builder**: Add items one-by-one to create custom shopping lists, then find which store offers the lowest total cost
-4. **Price History Tracking**: View historical pricing data to identify the best time to buy
-5. **Intelligent Search**: Fuzzy matching algorithm finds items even with typos or partial names
+4. **Price History Tracking**: View historical pricing data to identify the best time to buy and speculate future prices
+5. **Advanced Filtering**: Filter by specific stores, item categories, or budget range to refine your search
 
 ---
 
@@ -67,19 +67,21 @@ Start-Process index.html
 #### 3. Start Using Budgeteer
 
 **Single Item Search:**
-- Type an item name (e.g., "milk") into the search bar
-- View results across all stores with prices and store locations
-- Click "View Price History" to see pricing trends
+- Simply enter the item you want to buy in the search feature
+- The app will take your item and display it across our three selected databases: Loblaws, Walmart, and Costco
+- It will display the cheapest store, along with the past data for the item
+- Use the filter options to choose specific stores, items, or budget range
 
 **AI Shopping List:**
 - Switch to "AI Search Mode" 
-- Enter a natural language prompt: "I need ingredients for pasta dinner for 4 people"
-- Budgie (our AI assistant) generates an optimized shopping list
+- Enter a natural language prompt, for example: "I need snacks for a party under $50"
+- The AI will generate a shopping list of items to buy
 - Compare total costs across stores
 
 **Manual Shopping List:**
-- Enter item names one at a time
-- Click "Add Item" to add to your list
+- Type the item into the manual search bar
+- Click "Add Item" to add one item to the shopping list
+- Repeat this multiple times to generate your own shopping list
 - System finds the cheapest store for your complete list
 
 ### Detailed Setup
@@ -96,11 +98,11 @@ See [DOCUMENTATION.md](DOCUMENTATION.md) for platform-specific instructions, tro
 ### HTTP Server: cpp-httplib
 **Why?** Lightweight, header-only library requiring no external dependencies. Provides clean REST API implementation with built-in CORS support, perfect for rapid prototyping while maintaining production-level performance.
 
-### Frontend: HTML5, CSS3, Vanilla JavaScript
-**Why?** Zero dependencies mean zero overhead. Vanilla JavaScript eliminates framework bloat, resulting in faster load times and better performance on low-end devices. This accessibility focus ensures our solution reaches families who need it most.
+### Frontend: HTML, CSS, and JavaScript
+**Why?** We chose HTML, CSS, and JavaScript for the frontend to create a simple, accessible, and responsive user interface. Zero dependencies mean zero overhead, resulting in faster load times and better performance on low-end devices. This accessibility focus ensures our solution reaches families who need it most.
 
 ### AI Integration: GPT-4o-mini (via GitHub Models API)
-**Why?** Cost-effective and efficient. GPT-4o-mini offers strong natural language understanding at a fraction of the cost of larger models. Our hybrid approach combines local processing for basic searches with AI for complex queries, optimizing both cost and performance.
+**Why?** We used GPT-4o-mini for the AI system running the app because it is cheap and efficient. GPT-4o-mini offers strong natural language understanding at a fraction of the cost of larger models. Our hybrid approach combines local processing for basic searches with AI for complex queries, optimizing both cost and performance.
 
 ### Database: CSV with Custom Search Algorithm
 **Why?** Given the competition dataset format, we built an intelligent search engine using Levenshtein distance for fuzzy matching. This allows users to find "organization milk" even when searching for "organic milk", significantly improving usability.
@@ -111,6 +113,8 @@ See [DOCUMENTATION.md](DOCUMENTATION.md) for platform-specific instructions, tro
 
 ### Helping Families Save Money
 
+Families that want to shop cheaply can find the cheapest prices for shopping, and they can budget and save money. The app is also useful for families to speculate future prices of items, and to find times where the prices are the cheapest.
+
 **Real-World Scenario:**  
 A family of four spending $150/week on groceries could save $15-30 (10-20%) by shopping at the optimal store for their specific items. That's **$780-1,560 saved annually** - equivalent to a month or two of groceries.
 
@@ -118,9 +122,9 @@ A family of four spending $150/week on groceries could save $15-30 (10-20%) by s
 
 1. **Budget Empowerment**: Low-income families gain transparency into pricing, enabling informed decisions
 2. **Time Savings**: Eliminates the need to visit multiple stores or manually compare prices
-3. **Price Awareness**: Historical data helps users identify sales patterns and optimal buying times
-4. **Reduced Food Insecurity**: Better budgeting means families can afford more nutritious food
-5. **Inflation Combat**: Aggregate data shows real pricing trends, not just advertised "deals"
+3. **Price Awareness**: Historical data helps users identify sales patterns and optimal buying times to purchase items
+4. **Price Speculation**: Users can analyze historical trends to predict when prices will be lowest
+5. **Reduced Food Insecurity**: Better budgeting means families can afford more nutritious food
 
 ### Accessibility
 
@@ -143,11 +147,17 @@ A family of four spending $150/week on groceries could save $15-30 (10-20%) by s
 
 ### User Assumptions
 
-1. **Internet Access**: Users have basic internet connectivity to access the web application
-2. **Browser Compatibility**: Users have a modern web browser (Chrome, Firefox, Safari, Edge - released within last 2 years)
-3. **Search Behavior**: Users can describe items in simple terms (e.g., "milk" rather than "Lactose-free 2% partly skimmed milk 2L")
-4. **Price Sensitivity**: Users prioritize cost savings over brand loyalty or store preference
+1. **Item Availability**: We assumed that the user's item can be found in the shops. If they do not, then the app will simply not display anything
+2. **Internet Access**: Users have basic internet connectivity to access the web application
+3. **Browser Compatibility**: Users have a modern web browser (Chrome, Firefox, Safari, Edge - released within last 2 years)
+4. **Search Behavior**: Users can describe items in simple terms (e.g., "milk" rather than "Lactose-free 2% partly skimmed milk 2L")
 5. **Shopping Lists**: Users shop for multiple items at once, making store comparison valuable
+
+### Shopping Behavior Assumptions
+
+1. **Single Store Preference**: We assumed that it would be cheaper for the user to buy all the items from the same store, than to travel to multiple stores
+2. **Budget Constraints**: If the budget is too low, the AI system removes some items to meet the user's price constraints
+3. **Price Sensitivity**: Users prioritize cost savings over brand loyalty or store preference
 
 ### Technical Assumptions
 
