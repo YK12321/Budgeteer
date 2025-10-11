@@ -2,6 +2,8 @@
 
 **An intelligent price comparison platform helping families save money on groceries**
 
+🌐 **Live Demo:** [https://yk12321.github.io/Budgeteer/](https://yk12321.github.io/Budgeteer/)
+
 ---
 
 ## Team Info

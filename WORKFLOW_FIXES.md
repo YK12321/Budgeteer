@@ -48,32 +48,81 @@ CMake Error at build/_deps/json-src/CMakeLists.txt:1 (cmake_minimum_required):
   id: find-openssl
   shell: powershell
   run: |
-    $opensslPath = "C:\Program Files\OpenSSL"
-    if (Test-Path $opensslPath) {
-      echo "OPENSSL_ROOT_DIR=$opensslPath" >> $env:GITHUB_ENV
-      echo "OpenSSL found at: $opensslPath"
-    } else {
-      $opensslPath = "C:\Program Files\OpenSSL-Win64"
-      if (Test-Path $opensslPath) {
-        echo "OPENSSL_ROOT_DIR=$opensslPath" >> $env:GITHUB_ENV
-        echo "OpenSSL found at: $opensslPath"
-      } else {
-        Write-Error "OpenSSL installation not found"
-        exit 1
+    # Check multiple possible OpenSSL installation paths
+    $possiblePaths = @(
+      "C:\Program Files\OpenSSL-Win64",
+      "C:\Program Files\OpenSSL",
+      "C:\OpenSSL-Win64",
+      "C:\OpenSSL"
+    )
+    
+    $opensslPath = $null
+    foreach ($path in $possiblePaths) {
+      if (Test-Path $path) {
+        $opensslPath = $path
+        Write-Host "OpenSSL found at: $opensslPath"
+        break
       }
+    }
+    
+    if (-not $opensslPath) {
+      Write-Error "OpenSSL installation not found"
+      exit 1
+    }
+    
+    # Set environment variables for CMake
+    echo "OPENSSL_ROOT_DIR=$opensslPath" >> $env:GITHUB_ENV
+    
+    # Also set individual library paths
+    $cryptoLib = "$opensslPath\lib\libcrypto.lib"
+    $sslLib = "$opensslPath\lib\libssl.lib"
+    
+    if (Test-Path $cryptoLib) {
+      echo "OPENSSL_CRYPTO_LIBRARY=$cryptoLib" >> $env:GITHUB_ENV
+    }
+    
+    if (Test-Path $sslLib) {
+      echo "OPENSSL_SSL_LIBRARY=$sslLib" >> $env:GITHUB_ENV
+    }
+    
+    # Set include directory
+    $includeDir = "$opensslPath\include"
+    if (Test-Path $includeDir) {
+      echo "OPENSSL_INCLUDE_DIR=$includeDir" >> $env:GITHUB_ENV
     }
 
 - name: Configure CMake
+  shell: powershell
   run: |
     cd Backend
-    cmake -B build -DCMAKE_BUILD_TYPE=Release -DOPENSSL_ROOT_DIR="$env:OPENSSL_ROOT_DIR"
+    $cmakeArgs = @(
+      "-B", "build",
+      "-DCMAKE_BUILD_TYPE=Release",
+      "-DOPENSSL_ROOT_DIR=$env:OPENSSL_ROOT_DIR"
+    )
+    
+    if ($env:OPENSSL_CRYPTO_LIBRARY) {
+      $cmakeArgs += "-DOPENSSL_CRYPTO_LIBRARY=$env:OPENSSL_CRYPTO_LIBRARY"
+    }
+    
+    if ($env:OPENSSL_SSL_LIBRARY) {
+      $cmakeArgs += "-DOPENSSL_SSL_LIBRARY=$env:OPENSSL_SSL_LIBRARY"
+    }
+    
+    if ($env:OPENSSL_INCLUDE_DIR) {
+      $cmakeArgs += "-DOPENSSL_INCLUDE_DIR=$env:OPENSSL_INCLUDE_DIR"
+    }
+    
+    cmake @cmakeArgs
 ```
 
 **What This Does:**
-1. **Detects OpenSSL installation path** - Checks two common installation locations
-2. **Sets environment variable** - Exports `OPENSSL_ROOT_DIR` for CMake
-3. **Passes to CMake** - Explicitly tells CMake where to find OpenSSL
-4. **Validates installation** - Fails fast if OpenSSL not found
+1. **Detects OpenSSL installation path** - Checks four common installation locations
+2. **Sets root directory** - Exports `OPENSSL_ROOT_DIR` for CMake
+3. **Sets individual library paths** - Explicitly sets `OPENSSL_CRYPTO_LIBRARY` and `OPENSSL_SSL_LIBRARY`
+4. **Sets include directory** - Exports `OPENSSL_INCLUDE_DIR` for headers
+5. **Passes all paths to CMake** - Conditionally adds each path if found
+6. **Validates installation** - Fails fast if OpenSSL not found
 
 ### 2. macOS Build Fix
 

@@ -31,25 +31,75 @@ jobs:
       id: find-openssl
       shell: powershell
       run: |
-        $opensslPath = "C:\Program Files\OpenSSL"
-        if (Test-Path $opensslPath) {
-          echo "OPENSSL_ROOT_DIR=$opensslPath" >> $env:GITHUB_ENV
-          echo "OpenSSL found at: $opensslPath"
-        } else {
-          $opensslPath = "C:\Program Files\OpenSSL-Win64"
-          if (Test-Path $opensslPath) {
-            echo "OPENSSL_ROOT_DIR=$opensslPath" >> $env:GITHUB_ENV
-            echo "OpenSSL found at: $opensslPath"
-          } else {
-            Write-Error "OpenSSL installation not found"
-            exit 1
+        # Check multiple possible OpenSSL installation paths
+        $possiblePaths = @(
+          "C:\Program Files\OpenSSL-Win64",
+          "C:\Program Files\OpenSSL",
+          "C:\OpenSSL-Win64",
+          "C:\OpenSSL"
+        )
+        
+        $opensslPath = $null
+        foreach ($path in $possiblePaths) {
+          if (Test-Path $path) {
+            $opensslPath = $path
+            Write-Host "OpenSSL found at: $opensslPath"
+            break
           }
+        }
+        
+        if (-not $opensslPath) {
+          Write-Error "OpenSSL installation not found in any expected location"
+          exit 1
+        }
+        
+        # Set environment variables for CMake
+        echo "OPENSSL_ROOT_DIR=$opensslPath" >> $env:GITHUB_ENV
+        
+        # Also set individual library paths if they exist
+        $cryptoLib = "$opensslPath\lib\libcrypto.lib"
+        $sslLib = "$opensslPath\lib\libssl.lib"
+        
+        if (Test-Path $cryptoLib) {
+          echo "OPENSSL_CRYPTO_LIBRARY=$cryptoLib" >> $env:GITHUB_ENV
+          Write-Host "Found crypto library: $cryptoLib"
+        }
+        
+        if (Test-Path $sslLib) {
+          echo "OPENSSL_SSL_LIBRARY=$sslLib" >> $env:GITHUB_ENV
+          Write-Host "Found SSL library: $sslLib"
+        }
+        
+        # Set include directory
+        $includeDir = "$opensslPath\include"
+        if (Test-Path $includeDir) {
+          echo "OPENSSL_INCLUDE_DIR=$includeDir" >> $env:GITHUB_ENV
+          Write-Host "Found include directory: $includeDir"
         }
       
     - name: Configure CMake
+      shell: powershell
       run: |
         cd Backend
-        cmake -B build -DCMAKE_BUILD_TYPE=Release -DOPENSSL_ROOT_DIR="$env:OPENSSL_ROOT_DIR"
+        $cmakeArgs = @(
+          "-B", "build",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DOPENSSL_ROOT_DIR=$env:OPENSSL_ROOT_DIR"
+        )
+        
+        if ($env:OPENSSL_CRYPTO_LIBRARY) {
+          $cmakeArgs += "-DOPENSSL_CRYPTO_LIBRARY=$env:OPENSSL_CRYPTO_LIBRARY"
+        }
+        
+        if ($env:OPENSSL_SSL_LIBRARY) {
+          $cmakeArgs += "-DOPENSSL_SSL_LIBRARY=$env:OPENSSL_SSL_LIBRARY"
+        }
+        
+        if ($env:OPENSSL_INCLUDE_DIR) {
+          $cmakeArgs += "-DOPENSSL_INCLUDE_DIR=$env:OPENSSL_INCLUDE_DIR"
+        }
+        
+        cmake @cmakeArgs
       
     - name: Build
       run: |
@@ -170,10 +220,25 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
+    - name: Create deployment info
+      run: |
+        cd Frontend
+        cat > deployment-info.json << EOF
+        {
+          "deployed": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+          "commit": "${{ github.sha }}",
+          "repository": "${{ github.repository }}",
+          "branch": "${{ github.ref_name }}",
+          "run_id": "${{ github.run_id }}"
+        }
+        EOF
+        
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./Frontend
         publish_branch: gh-pages
-        cname: budgeteer.example.com  # Optional: Replace with your custom domain
+        user_name: 'github-actions[bot]'
+        user_email: 'github-actions[bot]@users.noreply.github.com'
+        commit_message: 'Deploy Frontend from ${{ github.sha }}'
