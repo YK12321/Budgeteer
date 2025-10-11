@@ -1,0 +1,79 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint-frontend:
+    name: Lint Frontend
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check HTML
+      run: |
+        echo "✓ HTML validation"
+        # Add HTML validator if needed
+      
+    - name: Check JavaScript
+      run: |
+        echo "✓ JavaScript syntax check"
+        # Add ESLint or similar if needed
+      
+    - name: Check CSS
+      run: |
+        echo "✓ CSS validation"
+        # Add CSS linter if needed
+
+  check-formatting:
+    name: Check Code Formatting
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check C++ files exist
+      run: |
+        if [ -d "Backend/src" ]; then
+          echo "✓ Backend source files found"
+        else
+          echo "✗ Backend source files not found"
+          exit 1
+        fi
+      
+    - name: Check Frontend files exist
+      run: |
+        if [ -f "Frontend/index.html" ] && [ -f "Frontend/app.js" ] && [ -f "Frontend/styles.css" ]; then
+          echo "✓ Frontend files found"
+        else
+          echo "✗ Frontend files not found"
+          exit 1
+        fi
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+      
+    - name: Upload Trivy results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'

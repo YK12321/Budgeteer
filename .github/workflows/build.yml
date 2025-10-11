@@ -1,0 +1,151 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Build on Windows
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1.14
+      with:
+        cmake-version: '3.25.x'
+    
+    - name: Setup MSVC
+      uses: microsoft/setup-msbuild@v1.3
+      
+    - name: Configure CMake
+      run: |
+        cd Backend
+        cmake -B build -DCMAKE_BUILD_TYPE=Release
+      
+    - name: Build
+      run: |
+        cd Backend
+        cmake --build build --config Release
+      
+    - name: Test executable exists
+      run: |
+        if (Test-Path "Backend/build/bin/Release/BudgeteerAPI.exe") {
+          Write-Host "✓ Executable built successfully"
+        } else {
+          Write-Error "✗ Executable not found"
+          exit 1
+        }
+      
+    - name: Upload Windows artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: budgeteer-windows
+        path: |
+          Backend/build/bin/Release/BudgeteerAPI.exe
+          Backend/SampleDataset/
+        retention-days: 30
+
+  build-linux:
+    name: Build on Linux
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake g++ build-essential
+      
+    - name: Configure CMake
+      run: |
+        cd Backend
+        cmake -B build -DCMAKE_BUILD_TYPE=Release
+      
+    - name: Build
+      run: |
+        cd Backend
+        cmake --build build --config Release
+      
+    - name: Test executable exists
+      run: |
+        if [ -f "Backend/build/bin/BudgeteerAPI" ]; then
+          echo "✓ Executable built successfully"
+        else
+          echo "✗ Executable not found"
+          exit 1
+        fi
+      
+    - name: Upload Linux artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: budgeteer-linux
+        path: |
+          Backend/build/bin/BudgeteerAPI
+          Backend/SampleDataset/
+        retention-days: 30
+
+  build-macos:
+    name: Build on macOS
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        brew install cmake
+      
+    - name: Configure CMake
+      run: |
+        cd Backend
+        cmake -B build -DCMAKE_BUILD_TYPE=Release
+      
+    - name: Build
+      run: |
+        cd Backend
+        cmake --build build --config Release
+      
+    - name: Test executable exists
+      run: |
+        if [ -f "Backend/build/bin/BudgeteerAPI" ]; then
+          echo "✓ Executable built successfully"
+        else
+          echo "✗ Executable not found"
+          exit 1
+        fi
+      
+    - name: Upload macOS artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: budgeteer-macos
+        path: |
+          Backend/build/bin/BudgeteerAPI
+          Backend/SampleDataset/
+        retention-days: 30
+
+  deploy-frontend:
+    name: Deploy Frontend to GitHub Pages
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./Frontend
+        publish_branch: gh-pages
+        cname: budgeteer.example.com  # Optional: Replace with your custom domain

@@ -1,0 +1,200 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Get version
+      id: get_version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.get_version.outputs.version }}
+        release_name: Budgeteer ${{ steps.get_version.outputs.version }}
+        body: |
+          ## Budgeteer Release ${{ steps.get_version.outputs.version }}
+          
+          ### 🎉 What's New
+          - Smart price comparison across Walmart, Loblaws, and Costco
+          - Intelligent search with similarity matching
+          - Price history tracking
+          - Modern responsive web interface
+          
+          ### 📦 Downloads
+          - **Windows**: Download `budgeteer-windows.zip`
+          - **Linux**: Download `budgeteer-linux.tar.gz`
+          - **macOS**: Download `budgeteer-macos.tar.gz`
+          
+          ### 🚀 Quick Start
+          1. Download the appropriate package for your OS
+          2. Extract the archive
+          3. Run `BudgeteerAPI` (or `BudgeteerAPI.exe` on Windows)
+          4. Open `Frontend/index.html` in your browser
+          
+          ### 📊 Features
+          - ✅ 6,678+ price records
+          - ✅ 3 stores supported
+          - ✅ 10+ product categories
+          - ✅ Fuzzy search algorithm
+          - ✅ Price statistics (min, max, avg)
+          
+          ### 🐛 Bug Fixes & Improvements
+          See [CHANGELOG.md](CHANGELOG.md) for full details.
+          
+          ### 📝 Documentation
+          - [Backend README](Backend/README.md)
+          - [Frontend README](Frontend/README.md)
+          - [Main README](README.md)
+        draft: false
+        prerelease: false
+
+  build-and-release-windows:
+    name: Build and Release Windows
+    needs: create-release
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1.14
+      with:
+        cmake-version: '3.25.x'
+    
+    - name: Setup MSVC
+      uses: microsoft/setup-msbuild@v1.3
+      
+    - name: Build
+      run: |
+        cd Backend
+        cmake -B build -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config Release
+      
+    - name: Package Windows Release
+      run: |
+        mkdir budgeteer-windows
+        Copy-Item "Backend/build/bin/Release/BudgeteerAPI.exe" -Destination "budgeteer-windows/"
+        Copy-Item "Backend/SampleDataset" -Destination "budgeteer-windows/" -Recurse
+        Copy-Item "Backend/README.md" -Destination "budgeteer-windows/"
+        Copy-Item "Frontend" -Destination "budgeteer-windows/" -Recurse
+        Copy-Item "README.md" -Destination "budgeteer-windows/"
+        Compress-Archive -Path "budgeteer-windows/*" -DestinationPath "budgeteer-windows.zip"
+      
+    - name: Upload Windows Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./budgeteer-windows.zip
+        asset_name: budgeteer-windows-${{ needs.create-release.outputs.version }}.zip
+        asset_content_type: application/zip
+
+  build-and-release-linux:
+    name: Build and Release Linux
+    needs: create-release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake g++ build-essential
+      
+    - name: Build
+      run: |
+        cd Backend
+        cmake -B build -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config Release
+      
+    - name: Package Linux Release
+      run: |
+        mkdir budgeteer-linux
+        cp Backend/build/bin/BudgeteerAPI budgeteer-linux/
+        cp -r Backend/SampleDataset budgeteer-linux/
+        cp Backend/README.md budgeteer-linux/
+        cp -r Frontend budgeteer-linux/
+        cp README.md budgeteer-linux/
+        tar -czf budgeteer-linux.tar.gz budgeteer-linux/
+      
+    - name: Upload Linux Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./budgeteer-linux.tar.gz
+        asset_name: budgeteer-linux-${{ needs.create-release.outputs.version }}.tar.gz
+        asset_content_type: application/gzip
+
+  build-and-release-macos:
+    name: Build and Release macOS
+    needs: create-release
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        brew install cmake
+      
+    - name: Build
+      run: |
+        cd Backend
+        cmake -B build -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config Release
+      
+    - name: Package macOS Release
+      run: |
+        mkdir budgeteer-macos
+        cp Backend/build/bin/BudgeteerAPI budgeteer-macos/
+        cp -r Backend/SampleDataset budgeteer-macos/
+        cp Backend/README.md budgeteer-macos/
+        cp -r Frontend budgeteer-macos/
+        cp README.md budgeteer-macos/
+        tar -czf budgeteer-macos.tar.gz budgeteer-macos/
+      
+    - name: Upload macOS Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./budgeteer-macos.tar.gz
+        asset_name: budgeteer-macos-${{ needs.create-release.outputs.version }}.tar.gz
+        asset_content_type: application/gzip

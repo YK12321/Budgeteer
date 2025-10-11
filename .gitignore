@@ -1,0 +1,191 @@
+# Build directories
+build/
+bin/
+obj/
+out/
+Debug/
+Release/
+x64/
+x86/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+
+# Visual Studio
+.vs/
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+*.ko
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+BudgeteerAPI
+BudgeteerAPI.exe
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Kernel Module Compile Results
+*.mod*
+*.cmd
+.tmp_versions/
+modules.order
+Module.symvers
+Mkfile.old
+dkms.conf
+
+# Prerequisites
+*.d
+
+# Package files
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Logs and databases
+*.log
+*.sql
+*.sqlite
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
+*.bak
+*.old
+
+# Node modules (if using Node.js tools)
+node_modules/
+package-lock.json
+yarn.lock
+
+# Python (if using Python tools)
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE specific
+*.sublime-project
+*.sublime-workspace
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Build tools
+*.make
+Makefile.in
+.deps/
+.libs/
+
+# Documentation
+docs/_build/
+site/
+
+# Coverage reports
+*.gcov
+*.gcda
+*.gcno
+coverage/
+*.coverage
+
+# Cache
+.cache/
+*.cache
+
+# Mac specific
+.AppleDouble
+.LSOverride
+
+# Windows specific
+*.stackdump
+[Tt]humbs.db
+[Dd]esktop.ini
+
+# JetBrains
+*.iml
+.idea/
+cmake-build-*/
+
+# Keep certain files
+!.gitignore
+!.github/
