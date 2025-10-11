@@ -34,6 +34,7 @@ _deps/
 # Visual Studio Code
 .vscode/
 *.code-workspace
+LLM-instructions.txt
 
 # Compiled Object files
 *.slo
