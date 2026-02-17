@@ -8,7 +8,7 @@
 
 **Team Name:** Budgeteer  
 **Team Members:** Terry Liu, YK  
-**Competition:** York Entrepreneurship Competition (YEC) 2025  
+**Competition:** York Engineering Competition (YEC) 2025  
 **Project Title:** Budgeteer - Smart Price Comparison Platform
 
 ---
@@ -261,7 +261,7 @@ A family of four spending $150/week on groceries could save $15-30 (10-20%) by s
 
 ### Competition Resources
 
-[15] York Entrepreneurship Competition (YEC), "Programming Competition Dataset," York University, 2025.
+[15] York Engineering Competition (YEC), "Programming Competition Dataset," York University, 2025.
 
 ---
 
@@ -275,7 +275,7 @@ A family of four spending $150/week on groceries could save $15-30 (10-20%) by s
 
 ## License
 
-This project was created for the York Entrepreneurship Competition 2025.
+This project was created for the York Engineering Competition 2025.
 
 ---
 
